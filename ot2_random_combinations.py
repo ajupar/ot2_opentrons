@@ -68,6 +68,16 @@ class Combination:
         self.specie = specie
         self.target_well = target_well
 
+    # TODO def get_required_tips()
+
+    def get_required_tips(self, target_well_volume_ul):
+        amount = len(self.specie)
+        volume = target_well_volume_ul / (amount*1.0)
+        # TODO define get_tip_volume or smth
+
+        return amount, volume
+
+
     def pipette_combination(self, pipette: protocol_api.InstrumentContext, source_plate: protocol_api.Labware, target_plate: protocol_api.Labware, total_volume: float, change_pipettes: bool):
         ''' Calls the Opentrons transfer method to pipette the Species contained in this Combination '''
         assert len(self.specie) > 0, "specie of combination not initialized"
@@ -91,7 +101,7 @@ class Combination:
 SOURCE_WELLS_INITIAL_VOLUME_UL = 10000.0  # modify this based on initial volume; affects how source well is changed
 SOURCE_WELL_MARGIN = 10.0  # how many ul is left to source wells before changing to another
 # 1: name, 2: list of source wells (incl well location and fluid volume)
-SPECIES_1 = Species("laji1", [Well("A1", SOURCE_WELLS_INITIAL_VOLUME_UL)])
+SPECIES_1 = Species("laji1", [Well("A1", SOURCE_WELLS_INITIAL_VOLUME_UL)]) # TODO helpompi käyttää opentronsin omaa Welliä?
 SPECIES_2 = Species("laji2", [Well("B1", SOURCE_WELLS_INITIAL_VOLUME_UL)])
 SPECIES_3 = Species("laji3", [Well("C1", SOURCE_WELLS_INITIAL_VOLUME_UL)])
 SPECIES_4 = Species("laji4", [Well("D1", SOURCE_WELLS_INITIAL_VOLUME_UL)])
@@ -115,13 +125,14 @@ def flatten_list(l: list):
 
 
 def initialize_combinations_list(species_list, source_plate: protocol_api.Labware):
+    ''' Initialize combinations list with all the possible
+     binomial coefficient combinations of the SPECIES_LIST
+      into a randomized single-level list '''
+
     number_of_species = len(species_list)
 
     # TODO use source_plate, refactor better
 
-    ''' Initialize combinations list with all the possible
-     binomial coefficient combinations of the SPECIES_LIST
-      into a randomized single-level list '''
     combinations_list = []
 
     # https://stackoverflow.com/a/464882
@@ -139,7 +150,9 @@ def initialize_combinations_list(species_list, source_plate: protocol_api.Labwar
 
     collections_list = []
 
-    coords = ["A1", "B1", "C1", "D1", "E1", "F1", "G1", "H1"]*12  # TODO for testing; do this better, use Opentrons API
+    coords = ["A1", "B1", "C1", "D1", "E1", "F1", "G1", "H1"]*12  # TODO for testing; do this better, use Opentrons API?
+    # TODO or create method that defines the target wells for the current block, and make
+    #  easy interface between custom Well and Opentrons Well
 
     for i, comb in enumerate(combinations_list):
         collections_list.append(Combination(comb, Well(coords[i])))
@@ -170,21 +183,27 @@ assert len(SPECIES_LIST) == NUMBER_OF_SPECIES, "number of species and species li
 # https://docs.opentrons.com/v2/writing.html#the-run-function-and-the-protocol-context
 metadata = {"apiLevel": "2.13"}  # ylin taso jolla opentrons_simulate toimii
 
+labware_dictionary = {
+    'filter_tip_96_20ul': 'opentrons_96_filtertiprack_20ul',
+    'tip_96_300ul': 'opentrons_96_tiprack_300ul',
+    'plate_96_200ul': 'biorad_96_wellplate_200ul_pcr' # pitää ilmeisesti muuttaa Sarstedtin custom-levyks
+}
+
 
 def run(protocol: protocol_api.ProtocolContext):
     # https://docs.opentrons.com/v2/writing.html#the-run-function-and-the-protocol-context
-    tiprack_20ul_1 = protocol.load_labware("opentrons_96_filtertiprack_20ul", 1) # saatetaan tarvita monta
-    tiprack_20ul_2 = protocol.load_labware("opentrons_96_filtertiprack_20ul", 2)
-    tiprack_20ul_3 = protocol.load_labware("opentrons_96_filtertiprack_20ul", 3)
-    tiprack_300ul_1 = protocol.load_labware("opentrons_96_tiprack_300ul", 4)  # we need A LOT of tips ...
-    tiprack_300ul_2 = protocol.load_labware("opentrons_96_tiprack_300ul", 5)
-    tiprack_300ul_3 = protocol.load_labware("opentrons_96_tiprack_300ul", 6)
-    tiprack_300ul_4 = protocol.load_labware("opentrons_96_tiprack_300ul", 7)
-    tiprack_300ul_5 = protocol.load_labware("opentrons_96_tiprack_300ul", 8)
+    tiprack_20ul_1 = protocol.load_labware(labware_dictionary["filter_tip_96_20ul"], 1) # saatetaan tarvita monta
+    tiprack_20ul_2 = protocol.load_labware(labware_dictionary["filter_tip_96_20ul"], 2)
+    tiprack_20ul_3 = protocol.load_labware(labware_dictionary["filter_tip_96_20ul"], 3)
+    tiprack_300ul_1 = protocol.load_labware(labware_dictionary["tip_96_300ul"], 4)  # we need A LOT of tips ...
+    tiprack_300ul_2 = protocol.load_labware(labware_dictionary["tip_96_300ul"], 5)
+    tiprack_300ul_3 = protocol.load_labware(labware_dictionary["tip_96_300ul"], 6)
+    tiprack_300ul_4 = protocol.load_labware(labware_dictionary["tip_96_300ul"], 7)
+    tiprack_300ul_5 = protocol.load_labware(labware_dictionary["tip_96_300ul"], 8)
 
-    master_plate1 = protocol.load_labware("biorad_96_wellplate_200ul_pcr", 9)  # pitää ilmeisesti muuttaa Sarstedtin custom-levyksi
-    master_plate2 = protocol.load_labware("biorad_96_wellplate_200ul_pcr", 10)
-    reservoir_plate = protocol.load_labware("biorad_96_wellplate_200ul_pcr", 11)
+    master_plate1 = protocol.load_labware(labware_dictionary["plate_96_200ul"], 9)
+    master_plate2 = protocol.load_labware(labware_dictionary["plate_96_200ul"], 10)
+    reservoir_plate = protocol.load_labware(labware_dictionary["plate_96_200ul"], 11)
 
     global_combinations_list: List[Combination]
     global_combinations_list = initialize_combinations_list(SPECIES_LIST, reservoir_plate)
