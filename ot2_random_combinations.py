@@ -15,11 +15,15 @@ class Well:
     location: str
     current_volume: float
     maximum_volume: float
+    opentrons_plate: protocol_api.Labware
+    opentrons_well: protocol_api.Well
 
     # https://www.scaler.com/topics/multiple-constructors-python/
     def __init__(self, *args):
         if len(args) == 0:
-            raise Exception("must give at least location of the Well")
+            self.location = ""
+            self.current_volume = 0
+            self.maximum_volume = 0
         elif len(args) == 1:
             self.location = args[0]
             self.current_volume = 0
@@ -86,7 +90,7 @@ class Combination:
         tip_volume = define_tip_volume(self.get_individual_transfer_volume(target_well_volume_ul))
         return self.get_amount_of_transfers(), tip_volume
 
-    def pipette_combination(self, pipette: protocol_api.InstrumentContext, source_plate: protocol_api.Labware, target_plate: protocol_api.Labware, total_volume: float, change_pipettes: bool):
+    def pipette_combination(self, protocol: protocol_api.ProtocolContext, pipette: protocol_api.InstrumentContext, source_plate: protocol_api.Labware, target_plate: protocol_api.Labware, total_volume: float, change_pipettes: bool):
         """ Calls the Opentrons transfer method to pipette the Species contained in this Combination """
         assert len(self.specie) > 0, "specie of combination not initialized"
         spec: Species
@@ -94,13 +98,21 @@ class Combination:
             assert spec.name is not None and spec.source_wells is not None
 
         for spec in self.specie:
-            volume_to_transfer = total_volume / len(self.specie)
-            source_well: Well
-            source_well = spec.get_current_source_well(volume_to_transfer)
-            initial_volume = source_well.current_volume
-            pipette.transfer(volume_to_transfer, source_well.get_opentrons_well(source_plate), self.target_well.get_opentrons_well(target_plate), change_pipettes)
-            source_well.current_volume -= volume_to_transfer
-            assert source_well.current_volume == initial_volume - volume_to_transfer, "Source well volume should decrease correctly"
+            try:
+                volume_to_transfer = total_volume / len(self.specie)
+                source_well: Well
+                source_well = spec.get_current_source_well(volume_to_transfer)
+                initial_volume = source_well.current_volume
+                pipette.transfer(volume_to_transfer, source_well.get_opentrons_well(source_plate), self.target_well.opentrons_well, change_pipettes)
+                source_well.current_volume -= volume_to_transfer
+                assert source_well.current_volume == initial_volume - volume_to_transfer, "Source well volume should decrease correctly"
+            except OutOfTipsError:
+                protocol.pause("Out of tips for pipette " + str(pipette) + "! Reload all tips back to starting configuration, then resume.")
+                pipette.reset_tipracks()
+                self.pipette_combination(protocol, pipette, source_plate, target_plate, total_volume,
+                                                change_pipettes)
+
+
 
 
 def define_tip_volume(volume: float) -> float:
@@ -121,13 +133,28 @@ class Block:
     block_size: int
     block_num: int
     starting_index: int
+    control_wells_amount: int
     combinations_list: List[Combination]
     target_plates: List[protocol_api.Labware]
 
-    def __init__(self, block_size:int, block_num: int):
+    def __init__(self, block_size:int, block_num: int, control_wells_amount: int):
         self.block_size = block_size
         self.block_num = block_num
-        self.starting_index = block_num * block_size +1
+        self.control_wells_amount = control_wells_amount
+        self.starting_index = (block_num-1) * block_size
+
+    def define_current_target_plate_and_well(self, index_inside_block: int, target_plates: List[protocol_api.Labware]) -> Tuple[protocol_api.Labware, protocol_api.Well]:
+        """ Return the Opentrons plate and Opentrons Well for this transfer """
+        if self.starting_index is None:
+            raise Exception("starting_index should be defined")
+        current_index = self.starting_index + index_inside_block
+        for plate in target_plates:
+            if current_index < len(plate.wells()):
+                return plate, plate.well(current_index)
+            else:
+                current_index -= len(plate.wells())
+                continue
+        raise Exception("Could not define target plate, are enough target plates available?")
 
     def initialize_combinations_list(self, species_list: List[Species], target_plates: List[protocol_api.Labware]):
         """ Initialize the combinations list for one Block with all the possible
@@ -136,47 +163,44 @@ class Block:
 
         self.target_plates = target_plates
         number_of_species = len(species_list)
-        combinations_list = []
+        species_combinations_list = []
 
         # https://stackoverflow.com/a/464882
         # https://docs.python.org/3/library/itertools.html#itertools.combinations
         for i in range(0, number_of_species):
             # print("appending", list(itertools.combinations(SPECIES_LIST, i + 1)))
-            combinations_list.append(list(itertools.combinations(species_list, i + 1)))
+            species_combinations_list.append(list(itertools.combinations(species_list, i + 1)))
 
-        combinations_list = flatten_list(combinations_list)
-        combinations_list: list
+        species_combinations_list = flatten_list(species_combinations_list)
+        species_combinations_list: list
 
         # test that we have the correct number of combinations (63 combinations with 6 species)
-        assert len(combinations_list) == sum(math.comb(number_of_species, x) for x in range(1,
+        assert len(species_combinations_list) == sum(math.comb(number_of_species, x) for x in range(1,
                                                                                             number_of_species + 1)), "combinations_list length should be equal to amount of combinations"
-        random.shuffle(combinations_list)  # randomize the order
+        random.shuffle(species_combinations_list)  # randomize the order
 
-        collections_list = []
+        assert len(species_combinations_list) + self.control_wells_amount == self.block_size, "Block size should equal amount of combinations + control wells"
 
-        coords = ["A1", "B1", "C1", "D1", "E1", "F1", "G1",
-                  "H1"] * 12  # TODO for testing; do this better, use Opentrons API?
-        # TODO or create method that defines the target wells for the current block, and make
-        #  easy interface between custom Well and Opentrons Well
+        combination_objects_list = []
 
-        for i, comb in enumerate(combinations_list):
-            collections_list.append(Combination(comb, Well(coords[i])))
+        for i, comb in enumerate(species_combinations_list):
+            current_target_plate, current_target_well = self.define_current_target_plate_and_well(i, target_plates)
+            target_well = Well()
+            target_well.opentrons_plate = current_target_plate
+            target_well.opentrons_well = current_target_well
+            combination_objects_list.append(Combination(comb, target_well))
 
-        # collections_list = list(map(lambda combs: Combination(combs, Well("A1")), combinations_list))
+        self.combinations_list = combination_objects_list
 
-        self.combinations_list = collections_list
-        return collections_list
+        return combination_objects_list
 
     def transfer_block(self, protocol: protocol_api.ProtocolContext, pipette: protocol_api.InstrumentContext, source_plate: protocol_api.Labware, target_plate: protocol_api.Labware, total_volume: float, change_pipettes: bool):
+        protocol.comment("Starting to transfer block " + str(self.block_num) + " with " + str(self.block_size) + " combinations")
+
         for combination in self.combinations_list:
-            try:
-                combination.pipette_combination(pipette, source_plate, target_plate, total_volume,
+            combination.pipette_combination(protocol, pipette, source_plate, target_plate, total_volume,
                                                 change_pipettes)
-            except OutOfTipsError:
-                protocol.pause("Out of tips for pipette " + str(pipette) + "! Reload all tips back to starting configuration, then resume.")
-                pipette.reset_tipracks()
-                combination.pipette_combination(pipette, source_plate, target_plate, total_volume,
-                                                change_pipettes)
+
 
 
 
@@ -209,7 +233,8 @@ LABWARE_DICTIONARY = {
 
 BLOCK_SIZE = 64  # wells
 CONTROL_WELLS_PER_BLOCK = 1
-BLOCKS = [Block(BLOCK_SIZE, 1), Block(BLOCK_SIZE, 2), Block(BLOCK_SIZE, 3)]
+BLOCKS = [Block(BLOCK_SIZE, 1, 1), Block(BLOCK_SIZE, 2, 1), Block(BLOCK_SIZE, 3, 1)]
+
 
 ####################
 
@@ -242,10 +267,11 @@ def run(protocol: protocol_api.ProtocolContext):
     tiprack_300ul_2 = protocol.load_labware(LABWARE_DICTIONARY["tip_96_300ul"][0], 5)
     tiprack_300ul_3 = protocol.load_labware(LABWARE_DICTIONARY["tip_96_300ul"][0], 6)
     tiprack_300ul_4 = protocol.load_labware(LABWARE_DICTIONARY["tip_96_300ul"][0], 7)
-    tiprack_300ul_5 = protocol.load_labware(LABWARE_DICTIONARY["tip_96_300ul"][0], 8)
+    # tiprack_300ul_5 = protocol.load_labware(LABWARE_DICTIONARY["tip_96_300ul"][0], 8)
 
-    target_plate1 = protocol.load_labware(LABWARE_DICTIONARY["plate_96_200ul"][0], 9)
-    target_plate2 = protocol.load_labware(LABWARE_DICTIONARY["plate_96_200ul"][0], 10)
+    target_plate1 = protocol.load_labware(LABWARE_DICTIONARY["plate_96_200ul"][0], 8)
+    target_plate2 = protocol.load_labware(LABWARE_DICTIONARY["plate_96_200ul"][0], 9)
+    target_plate3 = protocol.load_labware(LABWARE_DICTIONARY["plate_96_200ul"][0], 10)
     source_plate = protocol.load_labware(LABWARE_DICTIONARY["plate_96_200ul"][0], 11)
 
     required_tip_amounts = {
@@ -255,7 +281,7 @@ def run(protocol: protocol_api.ProtocolContext):
     volume_needed_per_species = 0.0
     for block in BLOCKS:
         block_combinations_list: List[Combination]
-        block_combinations_list = block.initialize_combinations_list(SPECIES_LIST, [target_plate1, target_plate2])
+        block_combinations_list = block.initialize_combinations_list(SPECIES_LIST, [target_plate1, target_plate2, target_plate3])
         for combination in block_combinations_list:
             for s in combination.specie:
                 s: Species
