@@ -126,7 +126,7 @@ class Combination:
                 source_well.current_volume -= volume_to_transfer
                 assert source_well.current_volume == initial_volume - volume_to_transfer, "Source well volume should decrease correctly"
             except OutOfTipsError:
-                protocol.pause("Out of tips for pipette " + str(pipette) + " while transferring species " + spec.name + " from well " + str(source_well.get_opentrons_well(source_plate)) + " to well " + str(self.target_well.opentrons_well) +"! Reload all tips back to starting configuration, then resume.")
+                protocol.pause("Out of tips for pipette " + str(pipette) + " while transferring species " + spec.name + " from well " + str(source_well.get_opentrons_well(source_plate)) + " to well " + str(self.target_well.opentrons_well) +"! Reload the tips for this pipette back to starting configuration, then resume.")
                 pipette.reset_tipracks()
 
                 protocol.comment("Transferring " + str(volume_to_transfer) + " μl of species " + spec.name + " from well " + str(source_well.get_opentrons_well(source_plate)))
@@ -168,17 +168,19 @@ def define_pipette_to_use(pipette_volume: float, pipettes: List[protocol_api.Ins
 
 class Block:
     """ A full block which includes all the Combinations in this experiment """
+    local_species_list: List[Species]
+    controls: List[Species]
     block_size: int
     block_num: int
     starting_index: int
-    control_wells_amount: int
     combinations_list: List[Combination]
     target_plates: List[protocol_api.Labware]
 
-    def __init__(self, block_size:int, block_num: int, control_wells_amount: int):
+    def __init__(self, species_list: List[Species], controls: List[Species], block_size: int, block_num: int):
+        self.local_species_list = species_list
+        self.controls = controls
         self.block_size = block_size
         self.block_num = block_num
-        self.control_wells_amount = control_wells_amount
         self.starting_index = (block_num-1) * block_size
 
     def define_current_target_plate_and_well(self, index_inside_block: int, target_plates: List[protocol_api.Labware]) -> Tuple[protocol_api.Labware, protocol_api.Well]:
@@ -194,20 +196,20 @@ class Block:
                 continue
         raise Exception("Could not define target plate, are enough target plates available?")
 
-    def initialize_combinations_list(self, species_list: List[Species], target_plates: List[protocol_api.Labware]):
+    def initialize_combinations_list(self, target_plates: List[protocol_api.Labware]):
         """ Initialize the combinations list for one Block with all the possible
          binomial coefficient combinations of the SPECIES_LIST
           into a randomized single-level list """
 
         self.target_plates = target_plates
-        number_of_species = len(species_list)
+        number_of_species = len(self.local_species_list)
         species_combinations_list = []
 
         # https://stackoverflow.com/a/464882
         # https://docs.python.org/3/library/itertools.html#itertools.combinations
         for i in range(0, number_of_species):
             # print("appending", list(itertools.combinations(SPECIES_LIST, i + 1)))
-            species_combinations_list.append(list(itertools.combinations(species_list, i + 1)))
+            species_combinations_list.append(list(itertools.combinations(self.local_species_list, i + 1)))
 
         species_combinations_list = flatten_list(species_combinations_list)
         species_combinations_list: list
@@ -216,11 +218,11 @@ class Block:
         assert len(species_combinations_list) == sum(math.comb(number_of_species, x) for x in range(1,
                                                                                             number_of_species + 1)), "combinations_list length should be equal to amount of combinations"
 
-        assert len(species_combinations_list) + self.control_wells_amount == self.block_size, "Block size should equal amount of combinations + control wells"
+        assert len(species_combinations_list) + len(self.controls) == self.block_size, "Block size should equal amount of combinations + control wells"
 
         # add controls, which are also coded as Species for simplicity
-        for i in range(0, self.control_wells_amount):
-            species_combinations_list.append([CONTROL])  # create single-member lists because control includes only one "species", ie. type of fluid
+        for control in self.controls:
+            species_combinations_list.append([control])  # create single-member lists because control includes only one "species", ie. type of fluid
 
         random.shuffle(species_combinations_list)  # randomize the order
 
@@ -243,7 +245,7 @@ class Block:
 
     def transfer_block(self, protocol: protocol_api.ProtocolContext, pipettes: List[protocol_api.InstrumentContext], source_plate: protocol_api.Labware, target_plate: protocol_api.Labware, total_volume: float, change_pipettes: bool, touch_tip: bool):
         """ Transfer the combinations and controls """
-        protocol.comment("Starting to transfer block " + str(self.block_num) + " with " + str(len(self.combinations_list)-self.control_wells_amount) + " combination(s) and " + str(self.control_wells_amount) + " control well(s)")
+        protocol.comment("Starting to transfer block " + str(self.block_num) + " with " + str(len(self.combinations_list)-len(self.controls)) + " combination(s) and " + str(len(self.controls)) + " control well(s), with species " + str([x.name for x in self.local_species_list]) + " and controls " + str([x.name for x in self.controls]))
 
         for index, combination in enumerate(self.combinations_list):
             protocol.comment("Starting to transfer combination " + str(index+1) + " in block " + str(self.block_num) + ", with species " + str([x.name for x in combination.specie]) + " into well " + str(combination.target_well.opentrons_well))
@@ -257,13 +259,13 @@ class Block:
             combination.pipette_combination(protocol, pipette, source_plate, target_plate, total_volume, change_pipettes, touch_tip)
 
 
-def generate_source_wells(column: int, number_of_rows: int, initial_volume: float, source_plate: protocol_api.Labware) -> List[Well]:
-    """ Generate source wells, a given number of rows on a given column. Also bind the wells
+def generate_source_wells(column_index: int, row_index: int, number_of_rows: int, initial_volume: float, source_plate: protocol_api.Labware) -> List[Well]:
+    """ Generate source wells, a given number of rows on a given column starting from the given row. Also bind the wells
      to the given Opentrons plate and corresponding well """
     wells: List[Well]
     wells = []
-    for i in range(1, number_of_rows+1):
-        coordinate = str(dict_rownumber_letter[i] + str(column))
+    for i in range(row_index, row_index + number_of_rows):
+        coordinate = str(dict_rownumber_letter[i] + str(column_index))
         well = Well(coordinate, initial_volume)
         well.opentrons_plate = source_plate
         well.opentrons_well = source_plate[coordinate]
@@ -297,10 +299,28 @@ SPECIES_3 = Species("laji3")
 SPECIES_4 = Species("laji4")
 SPECIES_5 = Species("laji5")
 SPECIES_6 = Species("laji6")
+SPECIES_7 = Species("laji7")
+SPECIES_8 = Species("laji8")
+SPECIES_9 = Species("laji9")
+SPECIES_10 = Species("laji10")
+SPECIES_11 = Species("laji11")
+SPECIES_12 = Species("laji12")
+SPECIES_13 = Species("laji13")
+SPECIES_14 = Species("laji14")
+SPECIES_15 = Species("laji15")
+SPECIES_16 = Species("laji16")
+SPECIES_17 = Species("laji17")
+SPECIES_18 = Species("laji18")
 # program logic handles control as a Species object
-CONTROL = Species("CONTROL")
-SPECIES_LIST = [SPECIES_1, SPECIES_2, SPECIES_3, SPECIES_4, SPECIES_5, SPECIES_6]
-NUMBER_OF_SPECIES = len(SPECIES_LIST)  # trivial but maybe useful to see
+CONTROLS_BLOCK_1 = [Species("CONTROL_BLOCK_1")]
+CONTROLS_BLOCK_2 = [Species("CONTROL_BLOCK_2")]
+CONTROLS_BLOCK_3 = [Species("CONTROL_BLOCK_3")]
+ALL_CONTROLS = CONTROLS_BLOCK_1 + CONTROLS_BLOCK_2 + CONTROLS_BLOCK_3
+BLOCK_1_SPECIES = [SPECIES_1, SPECIES_2, SPECIES_3, SPECIES_4, SPECIES_5, SPECIES_6]
+BLOCK_2_SPECIES = [SPECIES_7, SPECIES_8, SPECIES_9, SPECIES_10, SPECIES_11, SPECIES_12]
+BLOCK_3_SPECIES = [SPECIES_13, SPECIES_14, SPECIES_15, SPECIES_16, SPECIES_17, SPECIES_18]
+ALL_SPECIES = BLOCK_1_SPECIES + BLOCK_2_SPECIES + BLOCK_3_SPECIES
+NUMBER_OF_SPECIES = len(BLOCK_1_SPECIES)  # trivial but maybe useful to see
 VOLUME_PER_TARGET_WELL_UL = 60.0
 CHANGE_TIPS = True  # change tips after each transfer; almost always should be true
  # "kontaminaation ehkäisemiseksi robotin voi määrätä
@@ -316,7 +336,7 @@ LABWARE_DICTIONARY = {
 
 BLOCK_SIZE = 64  # wells
 CONTROL_WELLS_PER_BLOCK = 1
-BLOCKS = [Block(BLOCK_SIZE, 1, 1), Block(BLOCK_SIZE, 2, 1), Block(BLOCK_SIZE, 3, 1)]
+BLOCKS = [Block(BLOCK_1_SPECIES, CONTROLS_BLOCK_1, BLOCK_SIZE, 1), Block(BLOCK_2_SPECIES, CONTROLS_BLOCK_2, BLOCK_SIZE, 2), Block(BLOCK_3_SPECIES, CONTROLS_BLOCK_3, BLOCK_SIZE, 3)]
 
 
 ####################
@@ -328,7 +348,7 @@ def flatten_list(l: list):
     return [item for sublist in l for item in sublist]
 
 
-assert len(SPECIES_LIST) == NUMBER_OF_SPECIES, "number of species and species list length should be the same"
+assert len(BLOCK_1_SPECIES) == NUMBER_OF_SPECIES, "number of species and species list length should be the same"
 
 # https://docs.opentrons.com/v2/writing.html#the-run-function-and-the-protocol-context
 metadata = {"apiLevel": "2.13"}  # ylin taso jolla opentrons_simulate toimii
@@ -343,14 +363,18 @@ def add_to_required_tip_amounts(comb: Combination, amounts: dict, target_well_vo
 
 def define_source_wells(source_plate: protocol_api.Labware):
     """ Populate source wells and bind them to the Opentrons source plate """
-    SPECIES_1.source_wells = generate_source_wells(1, NUMBER_OF_SOURCE_WELLS_PER_SPECIES, SOURCE_WELLS_INITIAL_VOLUME_UL, source_plate)
-    SPECIES_2.source_wells = generate_source_wells(2, NUMBER_OF_SOURCE_WELLS_PER_SPECIES, SOURCE_WELLS_INITIAL_VOLUME_UL, source_plate)
-    SPECIES_3.source_wells = generate_source_wells(3, NUMBER_OF_SOURCE_WELLS_PER_SPECIES, SOURCE_WELLS_INITIAL_VOLUME_UL, source_plate)
-    SPECIES_4.source_wells = generate_source_wells(4, NUMBER_OF_SOURCE_WELLS_PER_SPECIES, SOURCE_WELLS_INITIAL_VOLUME_UL, source_plate)
-    SPECIES_5.source_wells = generate_source_wells(5, NUMBER_OF_SOURCE_WELLS_PER_SPECIES, SOURCE_WELLS_INITIAL_VOLUME_UL, source_plate)
-    SPECIES_6.source_wells = generate_source_wells(6, NUMBER_OF_SOURCE_WELLS_PER_SPECIES, SOURCE_WELLS_INITIAL_VOLUME_UL, source_plate)
-    CONTROL.source_wells = generate_source_wells(7, NUMBER_OF_CONTROL_WELLS, SOURCE_WELLS_INITIAL_VOLUME_UL, source_plate)
 
+    all_sources = ALL_SPECIES + ALL_CONTROLS
+
+    for i in range(0, len(all_sources)):
+        # two per one column, at row indexes 1 and 5
+        # for 18 species, this means columns 1-9 are used
+        # with 3 additional controls, this is 21 sources in total which uses 10.5 columns
+        define_sources_with_defaults(all_sources[i], ((i // 2) + 1), (1 if (i % 2 == 0) else 5), source_plate)
+
+
+def define_sources_with_defaults(spec: Species, colIndex: int, rowIndex: int, source_plate: protocol_api.Labware):
+    spec.source_wells = generate_source_wells(colIndex, rowIndex, NUMBER_OF_SOURCE_WELLS_PER_SPECIES, SOURCE_WELLS_INITIAL_VOLUME_UL, source_plate)
 
 
 def run(protocol: protocol_api.ProtocolContext):
@@ -390,7 +414,7 @@ def run(protocol: protocol_api.ProtocolContext):
     volume_needed_per_species = 0.0
     for block in BLOCKS:
         block_combinations_list: List[Combination]
-        block_combinations_list = block.initialize_combinations_list(SPECIES_LIST, [target_plate1, target_plate2, target_plate3])
+        block_combinations_list = block.initialize_combinations_list([target_plate1, target_plate2, target_plate3])
         for combination in block_combinations_list:
             for s in combination.specie:
                 s: Species
