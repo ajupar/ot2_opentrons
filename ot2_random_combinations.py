@@ -6,8 +6,33 @@ from opentrons import protocol_api
 import itertools
 import math
 import random
+import csv
+from datetime import datetime
 
 from opentrons.protocol_api.labware import OutOfTipsError
+
+CSV_TRANSFERS_HEADER = ["block", "combination", "species", "n_species", "individ_transf_vol", "total_transf_vol", "destination_plate", "destination_well"]
+CSV_TRANSFERS_ROWS = [CSV_TRANSFERS_HEADER]
+
+CSV_SOURCES_HEADER = ["species", "source_plate", "source_well", "starting_volume_ul"]
+CSV_SOURCES_ROWS = [CSV_SOURCES_HEADER]
+
+
+def write_csv(rows: List, filename: str):
+    """
+    https://docs.python.org/3/library/csv.html
+    https://www.pythontutorial.net/python-basics/python-write-csv-file/
+    @return:
+    """
+    with open(file=filename, mode="w", encoding="UTF8",
+              newline="") as csv_file:
+        csv_writer = csv.writer(csv_file)
+
+        csv_writer.writerows(rows)
+
+
+def generate_filename(identifier: str) -> str:
+    return identifier + "_" + datetime.now().strftime("%d%m%Y_%H-%M-%S") + ".csv"
 
 
 class Well:
@@ -106,7 +131,7 @@ class Combination:
         tip_volume = define_tip_volume(self.get_individual_transfer_volume(target_well_volume_ul))
         return self.get_amount_of_transfers(), tip_volume
 
-    def pipette_combination(self, protocol: protocol_api.ProtocolContext, pipette: protocol_api.InstrumentContext, source_plate: protocol_api.Labware, target_plate: protocol_api.Labware, total_volume: float, change_pipettes: bool, touch_tip: bool):
+    def pipette_combination(self, protocol: protocol_api.ProtocolContext, pipette: protocol_api.InstrumentContext, source_plate: protocol_api.Labware, target_plate: protocol_api.Labware, total_volume: float, change_pipettes: bool, touch_tip: bool, block_num: int, comb_num: int):
         """ Calls the Opentrons transfer method to pipette the Species contained in this Combination """
         global DEBUG_TRANSFER_COUNTER
         assert len(self.specie) > 0, "specie of combination not initialized"
@@ -114,9 +139,11 @@ class Combination:
         for spec in self.specie:
             assert spec.name is not None and spec.source_wells is not None
 
+        volume_to_transfer = total_volume / len(self.specie)
+
         for spec in self.specie:
             try:
-                volume_to_transfer = total_volume / len(self.specie)
+
                 source_well: Well
                 source_well = spec.get_current_source_well(volume_to_transfer)
                 initial_volume = source_well.current_volume
@@ -125,6 +152,7 @@ class Combination:
                 DEBUG_TRANSFER_COUNTER += 1  # this should run only if no exception is thrown
                 source_well.current_volume -= volume_to_transfer
                 assert source_well.current_volume == initial_volume - volume_to_transfer, "Source well volume should decrease correctly"
+
             except OutOfTipsError:
                 protocol.pause("Out of tips for pipette " + str(pipette) + " while transferring species " + spec.name + " from well " + str(source_well.get_opentrons_well(source_plate)) + " to well " + str(self.target_well.opentrons_well) +"! Reload the tips for this pipette back to starting configuration, then resume.")
                 pipette.reset_tipracks()
@@ -135,6 +163,8 @@ class Combination:
                 DEBUG_TRANSFER_COUNTER += 1
                 source_well.current_volume -= volume_to_transfer
                 assert source_well.current_volume == initial_volume - volume_to_transfer, "Source well volume should decrease correctly"
+
+        CSV_TRANSFERS_ROWS.append([block_num, comb_num, str([x.name for x in self.specie]), len(self.specie), volume_to_transfer, total_volume, str(self.target_well.opentrons_plate), self.target_well.opentrons_well.well_name])
 
 
 
@@ -256,10 +286,10 @@ class Block:
             protocol.comment("Selected pipette " + str(pipette) + " for this combination with transfer volume of " + str(individual_transfer_volume) + " μl per species")
             # to reduce risk of errors, program volume ranges and opentrons pipette volume ranges should be equal
             assert defined_tip_volume == pipette.max_volume, "Defined tip volume in the protocol and the Opentrons pipette max volume should be equal, assuming that the volume ranges defined in the program are identical to the Opentrons pipette volume ranges"
-            combination.pipette_combination(protocol, pipette, source_plate, target_plate, total_volume, change_pipettes, touch_tip)
+            combination.pipette_combination(protocol, pipette, source_plate, target_plate, total_volume, change_pipettes, touch_tip, block_num=self.block_num, comb_num=(index+1))
 
 
-def generate_source_wells(column_index: int, row_index: int, number_of_rows: int, initial_volume: float, source_plate: protocol_api.Labware) -> List[Well]:
+def generate_source_wells(spec: Species, column_index: int, row_index: int, number_of_rows: int, initial_volume: float, source_plate: protocol_api.Labware) -> List[Well]:
     """ Generate source wells, a given number of rows on a given column starting from the given row. Also bind the wells
      to the given Opentrons plate and corresponding well """
     wells: List[Well]
@@ -270,6 +300,8 @@ def generate_source_wells(column_index: int, row_index: int, number_of_rows: int
         well.opentrons_plate = source_plate
         well.opentrons_well = source_plate[coordinate]
         wells.append(well)
+
+        CSV_SOURCES_ROWS.append([spec.name, str(well.opentrons_plate), well.opentrons_well.well_name, SOURCE_WELLS_INITIAL_VOLUME_UL])
 
     return wells
 
@@ -374,7 +406,7 @@ def define_source_wells(source_plate: protocol_api.Labware):
 
 
 def define_sources_with_defaults(spec: Species, colIndex: int, rowIndex: int, source_plate: protocol_api.Labware):
-    spec.source_wells = generate_source_wells(colIndex, rowIndex, NUMBER_OF_SOURCE_WELLS_PER_SPECIES, SOURCE_WELLS_INITIAL_VOLUME_UL, source_plate)
+    spec.source_wells = generate_source_wells(spec, colIndex, rowIndex, NUMBER_OF_SOURCE_WELLS_PER_SPECIES, SOURCE_WELLS_INITIAL_VOLUME_UL, source_plate)
 
 
 def run(protocol: protocol_api.ProtocolContext):
@@ -446,6 +478,10 @@ def run(protocol: protocol_api.ProtocolContext):
 
     protocol.comment("Amount of executed transfers at the end is " + str(DEBUG_TRANSFER_COUNTER) + ", total pre-calculated tip consumption was " + str(sum(required_tip_amounts.values())) + ", values are equal: " + str(DEBUG_TRANSFER_COUNTER == sum(required_tip_amounts.values())))
 
+    write_csv(CSV_TRANSFERS_ROWS, generate_filename("transfers"))
+    write_csv(CSV_SOURCES_ROWS, generate_filename("sources"))
+
+    protocol.comment("Saved transfer data to file " + generate_filename("transfers") + " and sources data to file " + generate_filename("sources"))
 
 
 
