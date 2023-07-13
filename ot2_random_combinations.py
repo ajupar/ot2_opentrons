@@ -215,13 +215,14 @@ class Block:
         # test that we have the correct number of combinations (63 combinations with 6 species)
         assert len(species_combinations_list) == sum(math.comb(number_of_species, x) for x in range(1,
                                                                                             number_of_species + 1)), "combinations_list length should be equal to amount of combinations"
-        random.shuffle(species_combinations_list)  # randomize the order
 
         assert len(species_combinations_list) + self.control_wells_amount == self.block_size, "Block size should equal amount of combinations + control wells"
 
         # add controls, which are also coded as Species for simplicity
         for i in range(0, self.control_wells_amount):
             species_combinations_list.append([CONTROL])  # create single-member lists because control includes only one "species", ie. type of fluid
+
+        random.shuffle(species_combinations_list)  # randomize the order
 
         assert len(species_combinations_list) == self.block_size, "After adding controls, block size should equal amount of combinations"
 
