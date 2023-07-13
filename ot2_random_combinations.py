@@ -131,7 +131,7 @@ class Combination:
         tip_volume = define_tip_volume(self.get_individual_transfer_volume(target_well_volume_ul))
         return self.get_amount_of_transfers(), tip_volume
 
-    def pipette_combination(self, protocol: protocol_api.ProtocolContext, pipette: protocol_api.InstrumentContext, source_plate: protocol_api.Labware, target_plate: protocol_api.Labware, total_volume: float, change_pipettes: bool, touch_tip: bool, block_num: int, comb_num: int):
+    def pipette_combination(self, protocol: protocol_api.ProtocolContext, pipette: protocol_api.InstrumentContext, source_plate: protocol_api.Labware, total_volume: float, change_pipettes: bool, touch_tip: bool, block_num: int, comb_num: int):
         """ Calls the Opentrons transfer method to pipette the Species contained in this Combination """
         global DEBUG_TRANSFER_COUNTER
         assert len(self.specie) > 0, "specie of combination not initialized"
@@ -271,7 +271,40 @@ class Block:
 
         self.combinations_list = combination_objects_list
 
+        self.assert_species_appearances()
+
         return combination_objects_list
+
+    def assert_species_appearances(self):
+        """ Quality assurance method. Each species should appear in the combinations of a block the number of times defined by binomial coefficient calculations """
+        for spec in self.local_species_list:
+            appearances = self.count_species_appearances(spec)
+            # protocol_global.comment("Species " + spec.name + " appears " + str(appearances) + " times in Block " + str(self.block_num) + ", expected appearances: " + str(self.get_expected_appearances((len(self.local_species_list)))))
+            assert appearances == self.get_expected_appearances(len(self.local_species_list)), "each species should appear in the combinations of a block the number of times defined by binomial coefficient calculations"
+
+    def count_species_appearances(self, spec1: Species) -> int:
+        """ Quality assurance helper method """
+        count = 0
+
+        for combination in self.combinations_list:
+            for spec2 in combination.specie:
+                spec2: Species
+                if spec2.name == spec1.name:
+                    count += 1
+
+        return count
+
+    def get_expected_appearances(self, n: int):
+        """ For quality assurance, get the amount of times a species should appear in the combinations """
+        expected = 0
+
+        for k in range(1, (n+1)):
+            if k < n:
+                expected += (math.comb(n, k) - math.comb(n-1, k))  # subtract combinations where the species shouldn't appear
+            elif k == n:
+                expected += math.comb(n, k)  # this is always just 1
+
+        return expected
 
     def transfer_block(self, protocol: protocol_api.ProtocolContext, pipettes: List[protocol_api.InstrumentContext], source_plate: protocol_api.Labware, target_plate: protocol_api.Labware, total_volume: float, change_pipettes: bool, touch_tip: bool):
         """ Transfer the combinations and controls """
@@ -286,7 +319,7 @@ class Block:
             protocol.comment("Selected pipette " + str(pipette) + " for this combination with transfer volume of " + str(individual_transfer_volume) + " μl per species")
             # to reduce risk of errors, program volume ranges and opentrons pipette volume ranges should be equal
             assert defined_tip_volume == pipette.max_volume, "Defined tip volume in the protocol and the Opentrons pipette max volume should be equal, assuming that the volume ranges defined in the program are identical to the Opentrons pipette volume ranges"
-            combination.pipette_combination(protocol, pipette, source_plate, target_plate, total_volume, change_pipettes, touch_tip, block_num=self.block_num, comb_num=(index+1))
+            combination.pipette_combination(protocol, pipette, source_plate, total_volume, change_pipettes, touch_tip, block_num=self.block_num, comb_num=(index+1))
 
 
 def generate_source_wells(spec: Species, column_index: int, row_index: int, number_of_rows: int, initial_volume: float, source_plate: protocol_api.Labware) -> List[Well]:
