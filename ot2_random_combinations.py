@@ -465,8 +465,8 @@ def run(protocol: protocol_api.ProtocolContext):
     # tiprack_300ul_5 = protocol.load_labware(LABWARE_DICTIONARY["tip_96_300ul"][0], 8)
 
     # ensure there are enough target plates for the amount of combinations
-    target_plate1 = protocol.load_labware(LABWARE_DICTIONARY["plate_96_200ul"][0], 8)
-    target_plate2 = protocol.load_labware(LABWARE_DICTIONARY["plate_96_200ul"][0], 9)
+    target_plate1 = protocol.load_labware(LABWARE_DICTIONARY["juhani_deepwell_plate"][0], 8)
+    target_plate2 = protocol.load_labware(LABWARE_DICTIONARY["juhani_deepwell_plate"][0], 9)
     # target_plate3 = protocol.load_labware(LABWARE_DICTIONARY["plate_96_200ul"][0], 10)
     # assuming that one is enough
     source_plate = protocol.load_labware(LABWARE_DICTIONARY["plate_96_200ul"][0], 11)
