@@ -83,7 +83,7 @@ class Well:
         return opentrons_plate[self.location]
 
 
-class Species:
+class Species:f
     """ What we are transferring. Knows from which source
      well to transfer next """
     name: str
@@ -355,7 +355,7 @@ dict_rownumber_letter = {
 # script starting values
 SOURCE_WELLS_INITIAL_VOLUME_UL = 1000.0  # modify this based on initial volume; affects how source well is changed
 SOURCE_WELL_MARGIN = 50.0  # how many ul is left to source wells before changing to another
-NUMBER_OF_SOURCE_WELLS_PER_SPECIES = 3
+NUMBER_OF_SOURCE_WELLS_PER_SPECIES = 1
 NUMBER_OF_CONTROL_WELLS = 1
 # 1: name, 2: list of source wells (incl well location and fluid volume)
 SPECIES_1 = Species("laji1")  # source wells need to be generated inside run() method because they need access to the Opentrons plate
@@ -396,7 +396,8 @@ TOUCH_TIP = True  #  extra precaution to avoid contamination
 LABWARE_DICTIONARY = {
     'filter_tip_96_20ul': ('opentrons_96_filtertiprack_20ul', 20.0),
     'tip_96_300ul': ('opentrons_96_tiprack_300ul', 300.0),
-    'plate_96_200ul': ('biorad_96_wellplate_200ul_pcr', 200.0) # pitää ilmeisesti muuttaa Sarstedtin custom-levyksi
+    'plate_96_200ul': ('biorad_96_wellplate_200ul_pcr', 200.0),  # pitää ilmeisesti muuttaa Sarstedtin custom-levyksi
+    'juhani_deepwell_plate': ('sarstedt_96_wellplate_2200ul', 2000.0)  # custom määrittely
 }
 
 BLOCK_SIZE = 64  # wells
@@ -463,9 +464,9 @@ def run(protocol: protocol_api.ProtocolContext):
     # tiprack_300ul_5 = protocol.load_labware(LABWARE_DICTIONARY["tip_96_300ul"][0], 8)
 
     # ensure there are enough target plates for the amount of combinations
-    target_plate1 = protocol.load_labware(LABWARE_DICTIONARY["plate_96_200ul"][0], 8)
-    target_plate2 = protocol.load_labware(LABWARE_DICTIONARY["plate_96_200ul"][0], 9)
-    target_plate3 = protocol.load_labware(LABWARE_DICTIONARY["plate_96_200ul"][0], 10)
+    target_plate1 = protocol.load_labware(LABWARE_DICTIONARY["juhani_deepwell_plate"][0], 8)
+    target_plate2 = protocol.load_labware(LABWARE_DICTIONARY["juhani_deepwell_plate"][0], 9)
+    # target_plate3 = protocol.load_labware(LABWARE_DICTIONARY["plate_96_200ul"][0], 10)
     # assuming that one is enough
     source_plate = protocol.load_labware(LABWARE_DICTIONARY["plate_96_200ul"][0], 11)
 
@@ -479,7 +480,7 @@ def run(protocol: protocol_api.ProtocolContext):
     volume_needed_per_species = 0.0
     for block in BLOCKS:
         block_combinations_list: List[Combination]
-        block_combinations_list = block.initialize_combinations_list([target_plate1, target_plate2, target_plate3])
+        block_combinations_list = block.initialize_combinations_list([target_plate1, target_plate2])  # removed target_plate3
         for combination in block_combinations_list:
             for s in combination.specie:
                 s: Species
