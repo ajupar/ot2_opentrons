@@ -2,6 +2,8 @@
 # Press Double Shift to search everywhere for classes, files, tool windows, actions, and settings.
 from typing import List, Tuple
 
+
+
 from opentrons import protocol_api
 import itertools
 import math
@@ -9,7 +11,15 @@ import random
 import csv
 from datetime import datetime
 
+from math import factorial as fact
+
 from opentrons.protocol_api.labware import OutOfTipsError
+
+
+def binomial(a,b):
+    """" https://www.pythonpool.com/python-binomial-coefficient/ """
+    return fact(a) // fact(b) // fact(a-b)
+
 
 CSV_TRANSFERS_HEADER = ["block", "combination", "species", "n_species", "individ_transf_vol", "total_transf_vol", "destination_plate", "destination_well"]
 CSV_TRANSFERS_ROWS = [CSV_TRANSFERS_HEADER]
@@ -18,13 +28,14 @@ CSV_SOURCES_HEADER = ["species", "source_plate", "source_well", "starting_volume
 CSV_SOURCES_ROWS = [CSV_SOURCES_HEADER]
 
 
+
 def write_csv(rows: List, filename: str):
     """
     https://docs.python.org/3/library/csv.html
     https://www.pythontutorial.net/python-basics/python-write-csv-file/
     @return:
     """
-    with open(file=filename, mode="w", encoding="UTF8",
+    with open(file="C:\\Opentrons_tulosteet\\" + filename, mode="w", encoding="UTF8",
               newline="") as csv_file:
         csv_writer = csv.writer(csv_file)
 
@@ -245,7 +256,7 @@ class Block:
         species_combinations_list: list
 
         # test that we have the correct number of combinations (63 combinations with 6 species)
-        assert len(species_combinations_list) == sum(math.comb(number_of_species, x) for x in range(1,
+        assert len(species_combinations_list) == sum(binomial(number_of_species, x) for x in range(1,
                                                                                             number_of_species + 1)), "combinations_list length should be equal to amount of combinations"
 
         assert len(species_combinations_list) + len(self.controls) == self.block_size, "Block size should equal amount of combinations + control wells"
@@ -300,9 +311,9 @@ class Block:
 
         for k in range(1, (n+1)):
             if k < n:
-                expected += (math.comb(n, k) - math.comb(n-1, k))  # subtract combinations where the species shouldn't appear
+                expected += (binomial(n, k) - binomial(n-1, k))  # subtract combinations where the species shouldn't appear
             elif k == n:
-                expected += math.comb(n, k)  # this is always just 1
+                expected += binomial(n, k)  # this is always just 1
 
         return expected
 
@@ -387,7 +398,7 @@ BLOCK_3_SPECIES = [SPECIES_13, SPECIES_14, SPECIES_15, SPECIES_16, SPECIES_17, S
 ALL_SPECIES = BLOCK_1_SPECIES + BLOCK_2_SPECIES + BLOCK_3_SPECIES
 NUMBER_OF_SPECIES = len(BLOCK_1_SPECIES)  # trivial but maybe useful to see
 VOLUME_PER_TARGET_WELL_UL = 60.0
-CHANGE_TIPS = True  # change tips after each transfer; almost always should be true
+CHANGE_TIPS = False  # change tips after each transfer; almost always should be true
  # "kontaminaation ehkäisemiseksi robotin voi määrätä
 # koskemaan pipetin kärjellä kaivoin reunaa kun se on pipetoinut nesteen kaivoon"
 # https://docs.opentrons.com/v2/new_complex_commands.html#touch-tip
@@ -455,21 +466,21 @@ def run(protocol: protocol_api.ProtocolContext):
 
     # https://docs.opentrons.com/v2/writing.html#the-run-function-and-the-protocol-context
     # we need a lot of tips, but the program also prompts tip change when needed
-    tiprack_20ul_1 = protocol.load_labware(LABWARE_DICTIONARY["filter_tip_96_20ul"][0], 1)
-    tiprack_20ul_2 = protocol.load_labware(LABWARE_DICTIONARY["filter_tip_96_20ul"][0], 2)
-    tiprack_20ul_3 = protocol.load_labware(LABWARE_DICTIONARY["filter_tip_96_20ul"][0], 3)
-    tiprack_300ul_1 = protocol.load_labware(LABWARE_DICTIONARY["tip_96_300ul"][0], 4)
-    tiprack_300ul_2 = protocol.load_labware(LABWARE_DICTIONARY["tip_96_300ul"][0], 5)
-    tiprack_300ul_3 = protocol.load_labware(LABWARE_DICTIONARY["tip_96_300ul"][0], 6)
-    tiprack_300ul_4 = protocol.load_labware(LABWARE_DICTIONARY["tip_96_300ul"][0], 7)
+    tiprack_20ul_1 = protocol.load_labware(LABWARE_DICTIONARY["filter_tip_96_20ul"][0], 10)
+    # tiprack_20ul_2 = protocol.load_labware(LABWARE_DICTIONARY["filter_tip_96_20ul"][0], 2)
+    # tiprack_20ul_3 = protocol.load_labware(LABWARE_DICTIONARY["filter_tip_96_20ul"][0], 3)
+    tiprack_300ul_1 = protocol.load_labware(LABWARE_DICTIONARY["tip_96_300ul"][0], 7)
+    # tiprack_300ul_2 = protocol.load_labware(LABWARE_DICTIONARY["tip_96_300ul"][0], 5)
+    # tiprack_300ul_3 = protocol.load_labware(LABWARE_DICTIONARY["tip_96_300ul"][0], 6)
+    # tiprack_300ul_4 = protocol.load_labware(LABWARE_DICTIONARY["tip_96_300ul"][0], 7)
     # tiprack_300ul_5 = protocol.load_labware(LABWARE_DICTIONARY["tip_96_300ul"][0], 8)
 
     # ensure there are enough target plates for the amount of combinations
-    target_plate1 = protocol.load_labware(LABWARE_DICTIONARY["juhani_deepwell_plate"][0], 8)
-    target_plate2 = protocol.load_labware(LABWARE_DICTIONARY["juhani_deepwell_plate"][0], 9)
+    target_plate1 = protocol.load_labware(LABWARE_DICTIONARY["juhani_deepwell_plate"][0], 2)
+    target_plate2 = protocol.load_labware(LABWARE_DICTIONARY["juhani_deepwell_plate"][0], 3)
     # target_plate3 = protocol.load_labware(LABWARE_DICTIONARY["plate_96_200ul"][0], 10)
     # assuming that one is enough
-    source_plate = protocol.load_labware(LABWARE_DICTIONARY["plate_96_200ul"][0], 11)
+    source_plate = protocol.load_labware(LABWARE_DICTIONARY["juhani_deepwell_plate"][0], 4)
 
     define_source_wells(source_plate)
 
@@ -513,10 +524,10 @@ def run(protocol: protocol_api.ProtocolContext):
 
     protocol.comment("Amount of executed transfers at the end is " + str(DEBUG_TRANSFER_COUNTER) + ", total pre-calculated tip consumption was " + str(sum(required_tip_amounts.values())) + ", values are equal: " + str(DEBUG_TRANSFER_COUNTER == sum(required_tip_amounts.values())))
 
-    write_csv(CSV_TRANSFERS_ROWS, generate_filename("transfers"))
-    write_csv(CSV_SOURCES_ROWS, generate_filename("sources"))
+    # write_csv(CSV_TRANSFERS_ROWS, generate_filename("transfers"))
+    # write_csv(CSV_SOURCES_ROWS, generate_filename("sources"))
 
-    protocol.comment("Saved transfer data to file " + generate_filename("transfers") + " and sources data to file " + generate_filename("sources"))
+    # protocol.comment("Saved transfer data to file " + generate_filename("transfers") + " and sources data to file " + generate_filename("sources"))
 
 
 
