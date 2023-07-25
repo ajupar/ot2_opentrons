@@ -83,7 +83,7 @@ class Well:
         return opentrons_plate[self.location]
 
 
-class Species:f
+class Species:
     """ What we are transferring. Knows from which source
      well to transfer next """
     name: str
