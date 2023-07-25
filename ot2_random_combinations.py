@@ -430,7 +430,8 @@ def add_to_required_tip_amounts(comb: Combination, amounts: dict, target_well_vo
 def define_source_wells(source_plate: protocol_api.Labware):
     """ Populate source wells and bind them to the Opentrons source plate """
 
-    all_sources = ALL_SPECIES + ALL_CONTROLS
+    # all_sources = ALL_SPECIES + ALL_CONTROLS
+    all_sources = BLOCK_1_SPECIES + CONTROLS_BLOCK_1 + BLOCK_2_SPECIES + CONTROLS_BLOCK_2 + BLOCK_3_SPECIES + CONTROLS_BLOCK_3
 
     for i in range(0, len(all_sources)):
         # two per one column, at row indexes 1 and 5
@@ -464,8 +465,8 @@ def run(protocol: protocol_api.ProtocolContext):
     # tiprack_300ul_5 = protocol.load_labware(LABWARE_DICTIONARY["tip_96_300ul"][0], 8)
 
     # ensure there are enough target plates for the amount of combinations
-    target_plate1 = protocol.load_labware(LABWARE_DICTIONARY["juhani_deepwell_plate"][0], 8)
-    target_plate2 = protocol.load_labware(LABWARE_DICTIONARY["juhani_deepwell_plate"][0], 9)
+    target_plate1 = protocol.load_labware(LABWARE_DICTIONARY["plate_96_200ul"][0], 8)
+    target_plate2 = protocol.load_labware(LABWARE_DICTIONARY["plate_96_200ul"][0], 9)
     # target_plate3 = protocol.load_labware(LABWARE_DICTIONARY["plate_96_200ul"][0], 10)
     # assuming that one is enough
     source_plate = protocol.load_labware(LABWARE_DICTIONARY["plate_96_200ul"][0], 11)

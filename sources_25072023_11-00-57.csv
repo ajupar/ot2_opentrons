@@ -1,0 +1,22 @@
+species,source_plate,source_well,starting_volume_ul
+laji1,Bio-Rad 96 Well Plate 200 µL PCR on 11,A1,1000.0
+laji2,Bio-Rad 96 Well Plate 200 µL PCR on 11,E1,1000.0
+laji3,Bio-Rad 96 Well Plate 200 µL PCR on 11,A2,1000.0
+laji4,Bio-Rad 96 Well Plate 200 µL PCR on 11,E2,1000.0
+laji5,Bio-Rad 96 Well Plate 200 µL PCR on 11,A3,1000.0
+laji6,Bio-Rad 96 Well Plate 200 µL PCR on 11,E3,1000.0
+CONTROL_BLOCK_1,Bio-Rad 96 Well Plate 200 µL PCR on 11,A4,1000.0
+laji7,Bio-Rad 96 Well Plate 200 µL PCR on 11,E4,1000.0
+laji8,Bio-Rad 96 Well Plate 200 µL PCR on 11,A5,1000.0
+laji9,Bio-Rad 96 Well Plate 200 µL PCR on 11,E5,1000.0
+laji10,Bio-Rad 96 Well Plate 200 µL PCR on 11,A6,1000.0
+laji11,Bio-Rad 96 Well Plate 200 µL PCR on 11,E6,1000.0
+laji12,Bio-Rad 96 Well Plate 200 µL PCR on 11,A7,1000.0
+CONTROL_BLOCK_2,Bio-Rad 96 Well Plate 200 µL PCR on 11,E7,1000.0
+laji13,Bio-Rad 96 Well Plate 200 µL PCR on 11,A8,1000.0
+laji14,Bio-Rad 96 Well Plate 200 µL PCR on 11,E8,1000.0
+laji15,Bio-Rad 96 Well Plate 200 µL PCR on 11,A9,1000.0
+laji16,Bio-Rad 96 Well Plate 200 µL PCR on 11,E9,1000.0
+laji17,Bio-Rad 96 Well Plate 200 µL PCR on 11,A10,1000.0
+laji18,Bio-Rad 96 Well Plate 200 µL PCR on 11,E10,1000.0
+CONTROL_BLOCK_3,Bio-Rad 96 Well Plate 200 µL PCR on 11,A11,1000.0
