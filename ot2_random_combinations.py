@@ -6,7 +6,6 @@ from typing import List, Tuple
 
 from opentrons import protocol_api
 import itertools
-import math
 import random
 import csv
 from datetime import datetime
@@ -35,7 +34,7 @@ def write_csv(rows: List, filename: str):
     https://www.pythontutorial.net/python-basics/python-write-csv-file/
     @return:
     """
-    with open(file="C:\\Opentrons_tulosteet\\" + filename, mode="w", encoding="UTF8",
+    with open(file= filename, mode="w", encoding="UTF8",
               newline="") as csv_file:
         csv_writer = csv.writer(csv_file)
 
@@ -157,6 +156,8 @@ class Combination:
 
                 source_well: Well
                 source_well = spec.get_current_source_well(volume_to_transfer)
+                assert source_well.location == source_well.get_opentrons_well(source_plate).well_name, "Source custom well and Opentrons well location should match"
+                # target well location is defined only for Opentrons well, see Block.define_current_target_plate_and_well() usage
                 initial_volume = source_well.current_volume
                 protocol.comment("Transferring " + str(volume_to_transfer) + " μl of species " + spec.name + " from well " + str(source_well.get_opentrons_well(source_plate)))
                 pipette.transfer(volume_to_transfer, source_well.get_opentrons_well(source_plate), self.target_well.opentrons_well, trash=change_pipettes, touch_tip=touch_tip)
@@ -461,6 +462,10 @@ def run(protocol: protocol_api.ProtocolContext):
     global DEBUG_TRANSFER_COUNTER
     DEBUG_TRANSFER_COUNTER = 0
 
+    # TÄSTÄ ehtolause jolla erotellaan, onko simulointi (App/opentrons_simulate) vai oikea robottiajo,
+    # tiedostopolut oikein eri ehtoihin, ks. Opentrons Cookbook
+    #protocol.is_simulating()
+
     global protocol_global
     protocol_global = protocol  # needed for protocol.comment access inside modules that otherwise don't use protocol
 
@@ -524,10 +529,17 @@ def run(protocol: protocol_api.ProtocolContext):
 
     protocol.comment("Amount of executed transfers at the end is " + str(DEBUG_TRANSFER_COUNTER) + ", total pre-calculated tip consumption was " + str(sum(required_tip_amounts.values())) + ", values are equal: " + str(DEBUG_TRANSFER_COUNTER == sum(required_tip_amounts.values())))
 
-    # write_csv(CSV_TRANSFERS_ROWS, generate_filename("transfers"))
-    # write_csv(CSV_SOURCES_ROWS, generate_filename("sources"))
+    # Avoid validation error in the app or robot; the robot needs a specific file path (when is.simulating() is true)
+    path: str
+    if not protocol.is_simulating():
+        path = "/data/user_storage/"
+    else:
+        path = ""  # to protocol folder
 
-    # protocol.comment("Saved transfer data to file " + generate_filename("transfers") + " and sources data to file " + generate_filename("sources"))
+    write_csv(CSV_TRANSFERS_ROWS, path + generate_filename("transfers"))
+    write_csv(CSV_SOURCES_ROWS, path + generate_filename("sources"))
+
+    protocol.comment("Saved transfer data to file " + generate_filename("transfers") + " and sources data to file " + generate_filename("sources"))
 
 
 
