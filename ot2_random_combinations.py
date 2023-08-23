@@ -159,7 +159,7 @@ class Combination:
                 assert source_well.location == source_well.get_opentrons_well(source_plate).well_name, "Source custom well and Opentrons well location should match"
                 # target well location is defined only for Opentrons well, see Block.define_current_target_plate_and_well() usage
                 initial_volume = source_well.current_volume
-                protocol.comment("Transferring " + str(volume_to_transfer) + " μl of species " + spec.name + " from well " + str(source_well.get_opentrons_well(source_plate)))
+                protocol.comment("Transferring " + str(volume_to_transfer) + " μl of species " + spec.name + " from well " + str(source_well.get_opentrons_well(source_plate)) + " to " + str(self.target_well.opentrons_well))
                 pipette.transfer(volume_to_transfer, source_well.get_opentrons_well(source_plate), self.target_well.opentrons_well, trash=change_pipettes, touch_tip=touch_tip)
                 DEBUG_TRANSFER_COUNTER += 1  # this should run only if no exception is thrown
                 source_well.current_volume -= volume_to_transfer
@@ -266,7 +266,7 @@ class Block:
         for control in self.controls:
             species_combinations_list.append([control])  # create single-member lists because control includes only one "species", ie. type of fluid
 
-        random.shuffle(species_combinations_list)  # randomize the order
+        random.Random(RANDOM_SEED).shuffle(species_combinations_list)  # randomize the order
 
         assert len(species_combinations_list) == self.block_size, "After adding controls, block size should equal amount of combinations"
 
@@ -365,6 +365,7 @@ dict_rownumber_letter = {
 ##########################
 # This part can be modified by the user:
 # script starting values
+RANDOM_SEED = 18  # use static seed to get same order in Opentrons App and the robot, because both run the protocol independendtly in forming the protocol steps
 SOURCE_WELLS_INITIAL_VOLUME_UL = 1000.0  # modify this based on initial volume; affects how source well is changed
 SOURCE_WELL_MARGIN = 50.0  # how many ul is left to source wells before changing to another
 NUMBER_OF_SOURCE_WELLS_PER_SPECIES = 1
