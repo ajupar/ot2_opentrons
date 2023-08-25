@@ -411,13 +411,14 @@ LABWARE_DICTIONARY = {
     'filter_tip_96_20ul': ('opentrons_96_filtertiprack_20ul', 20.0),
     'tip_96_300ul': ('opentrons_96_tiprack_300ul', 300.0),
     'plate_96_200ul': ('biorad_96_wellplate_200ul_pcr', 200.0),  # pitää ilmeisesti muuttaa Sarstedtin custom-levyksi
+    'tipone_96_200ul': ("tipone_96_tiprack_200ul", 200.0),
     'juhani_deepwell_plate': ('sarstedt_96_wellplate_2200ul', 2000.0)  # custom määrittely
 }
 
 BLOCK_SIZE = 64  # wells
 CONTROL_WELLS_PER_BLOCK = 1
-BLOCKS = [Block(BLOCK_1_SPECIES, CONTROLS_BLOCK_1, BLOCK_SIZE, 1), Block(BLOCK_2_SPECIES, CONTROLS_BLOCK_2, BLOCK_SIZE, 2), Block(BLOCK_3_SPECIES, CONTROLS_BLOCK_3, BLOCK_SIZE, 3)]
-
+# BLOCKS = [Block(BLOCK_1_SPECIES, CONTROLS_BLOCK_1, BLOCK_SIZE, 1), Block(BLOCK_2_SPECIES, CONTROLS_BLOCK_2, BLOCK_SIZE, 2), Block(BLOCK_3_SPECIES, CONTROLS_BLOCK_3, BLOCK_SIZE, 3)]
+BLOCKS = [Block(BLOCK_1_SPECIES, CONTROLS_BLOCK_1, BLOCK_SIZE, 1)]
 
 ####################
 
@@ -478,6 +479,8 @@ def run(protocol: protocol_api.ProtocolContext):
     # tiprack_20ul_2 = protocol.load_labware(LABWARE_DICTIONARY["filter_tip_96_20ul"][0], 2)
     # tiprack_20ul_3 = protocol.load_labware(LABWARE_DICTIONARY["filter_tip_96_20ul"][0], 3)
     tiprack_300ul_1 = protocol.load_labware(LABWARE_DICTIONARY["tip_96_300ul"][0], 7)
+    # tiprack_300ul_1 = protocol.load_labware(LABWARE_DICTIONARY["tipone_96_200ul"], 7)
+
     # tiprack_300ul_2 = protocol.load_labware(LABWARE_DICTIONARY["tip_96_300ul"][0], 5)
     # tiprack_300ul_3 = protocol.load_labware(LABWARE_DICTIONARY["tip_96_300ul"][0], 6)
     # tiprack_300ul_4 = protocol.load_labware(LABWARE_DICTIONARY["tip_96_300ul"][0], 7)
@@ -517,8 +520,20 @@ def run(protocol: protocol_api.ProtocolContext):
     left_pipette_20ul = protocol.load_instrument("p20_single_gen2", "left", [tiprack_20ul_1]) # in simulation, not using more than one tip rack per type to demonstrate the tip change prompt mechanism
     right_pipette_300ul = protocol.load_instrument("p300_single_gen2", "right", [tiprack_300ul_1])
 
-    left_pipette_20ul.default_speed(PIPETTE_SPEED)  # https://docs.opentrons.com/v2/new_protocol_api.html?highlight=speed#opentrons.protocol_api.InstrumentContext.default_speed
-    right_pipette_300ul.default_speed(PIPETTE_SPEED)
+    # default is 400
+    left_pipette_20ul.default_speed = PIPETTE_SPEED  # https://docs.opentrons.com/v2/new_protocol_api.html?highlight=speed#opentrons.protocol_api.InstrumentContext.default_speed
+    right_pipette_300ul.default_speed = PIPETTE_SPEED
+
+    # https://docs.opentrons.com/v2/new_pipette.html#ot-2-pipette-flow-rates
+    # default 7.56
+    left_pipette_20ul.flow_rate.aspirate = 9.8  # default * 1.3
+    left_pipette_20ul.flow_rate.dispense = 9.8  # default * 1.3
+    left_pipette_20ul.flow_rate.blow_out = 9.8  # default * 1.3
+    # default 92.86
+    right_pipette_300ul.flow_rate.aspirate = 120.7
+    right_pipette_300ul.flow_rate.dispense = 120.7
+    right_pipette_300ul.flow_rate.blow_out = 120.7
+
 
     # https://docs.opentrons.com/v2/writing.html#commands
     # https://docs.opentrons.com/v2/new_examples.html
@@ -546,7 +561,6 @@ def run(protocol: protocol_api.ProtocolContext):
         path = "/home/atte/Ohjelmointi/pycharm-workspace/OT2_random_combinations/output/"  # running in computer
     else:
         path = "/data/user_storage/"  # running inside robot
-
 
 
     write_csv(CSV_TRANSFERS_ROWS, path + generate_filename("transfers"))
