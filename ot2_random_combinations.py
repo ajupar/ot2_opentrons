@@ -8,10 +8,9 @@ from opentrons import protocol_api
 import itertools
 import random
 import csv
+import platform
 from datetime import datetime
-
 from math import factorial as fact
-
 from opentrons.protocol_api.labware import OutOfTipsError
 
 
@@ -365,6 +364,8 @@ dict_rownumber_letter = {
 ##########################
 # This part can be modified by the user:
 # script starting values
+CURRENT_COMPUTER_NAME = "V155-15API"  # get this with platform.node(). used to separate analyses/runs on computer vs robot
+PIPETTE_SPEED = 600.0  # default is 400.0.  https://docs.opentrons.com/v2/new_protocol_api.html?highlight=speed#opentrons.protocol_api.InstrumentContext.default_speed
 RANDOM_SEED = 18  # use static seed to get same order in Opentrons App and the robot, because both run the protocol independendtly in forming the protocol steps
 SOURCE_WELLS_INITIAL_VOLUME_UL = 1000.0  # modify this based on initial volume; affects how source well is changed
 SOURCE_WELL_MARGIN = 50.0  # how many ul is left to source wells before changing to another
@@ -458,6 +459,7 @@ def define_sources_with_defaults(spec: Species, colIndex: int, rowIndex: int, so
 
 
 def run(protocol: protocol_api.ProtocolContext):
+
     # iterates the number of actually executed transfers for quality assurance purposes,
     # will be asserted against the pre-calculated theoretical amount of transfers
     global DEBUG_TRANSFER_COUNTER
@@ -515,6 +517,9 @@ def run(protocol: protocol_api.ProtocolContext):
     left_pipette_20ul = protocol.load_instrument("p20_single_gen2", "left", [tiprack_20ul_1]) # in simulation, not using more than one tip rack per type to demonstrate the tip change prompt mechanism
     right_pipette_300ul = protocol.load_instrument("p300_single_gen2", "right", [tiprack_300ul_1])
 
+    left_pipette_20ul.default_speed(PIPETTE_SPEED)  # https://docs.opentrons.com/v2/new_protocol_api.html?highlight=speed#opentrons.protocol_api.InstrumentContext.default_speed
+    right_pipette_300ul.default_speed(PIPETTE_SPEED)
+
     # https://docs.opentrons.com/v2/writing.html#commands
     # https://docs.opentrons.com/v2/new_examples.html
 
@@ -531,11 +536,18 @@ def run(protocol: protocol_api.ProtocolContext):
     protocol.comment("Amount of executed transfers at the end is " + str(DEBUG_TRANSFER_COUNTER) + ", total pre-calculated tip consumption was " + str(sum(required_tip_amounts.values())) + ", values are equal: " + str(DEBUG_TRANSFER_COUNTER == sum(required_tip_amounts.values())))
 
     # Avoid validation error in the app or robot; the robot needs a specific file path (when is.simulating() is true)
-    path: str
-    if not protocol.is_simulating():
-        path = "/data/user_storage/"
+    # path: str
+    # if not protocol.is_simulating():
+    #     path = "/data/user_storage/"
+    # else:
+    #     path = ""  # to protocol folder
+
+    if platform.node() == CURRENT_COMPUTER_NAME:  # https://stackoverflow.com/a/4271873
+        path = "/home/atte/Ohjelmointi/pycharm-workspace/OT2_random_combinations/output/"  # running in computer
     else:
-        path = ""  # to protocol folder
+        path = "/data/user_storage/"  # running inside robot
+
+
 
     write_csv(CSV_TRANSFERS_ROWS, path + generate_filename("transfers"))
     write_csv(CSV_SOURCES_ROWS, path + generate_filename("sources"))
