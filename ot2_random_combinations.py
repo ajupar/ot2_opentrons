@@ -343,7 +343,13 @@ dict_rownumber_letter = {
 # script starting values
 LINUX_COMPUTER_NAME = "V155-15API"  # get this with platform.node(). used to separate analyses/runs on computer vs robot
 MAC_COMPUTER_NAME = ""  # TODO
-PIPETTE_SPEED = 600.0  # default is 400.0.  https://docs.opentrons.com/v2/new_protocol_api.html?highlight=speed#opentrons.protocol_api.InstrumentContext.default_speed
+# https://docs.opentrons.com/v2/robot_position.html#gantry-speed
+# https://docs.opentrons.com/v2/new_protocol_api.html?highlight=speed#opentrons.protocol_api.InstrumentContext.default_speed
+# "These default speeds were chosen because they’re the maximum speeds that Opentrons knows will work with the gantry.
+# Your robot may be able to move faster, but you shouldn’t increase this value unless instructed by Opentrons Support."
+GANTRY_SPEED = 600.0  # default is 400.0.
+FLOW_RATE_20ul = 9.8  # default 7.56  -> 7.56 * 1.3
+FLOW_RATE_300ul = 120.7  # default 92.86  -> 92.86 * 1.3
 RANDOM_SEED = 18  # use static seed to get same order in Opentrons App and the robot, because both run the protocol independendtly in forming the protocol steps
 SOURCE_WELLS_INITIAL_VOLUME_UL = 1000.0  # modify this based on initial volume; affects how source well is changed
 SOURCE_WELL_MARGIN = 50.0  # how many ul is left to source wells before changing to another
@@ -567,18 +573,18 @@ def run(protocol: protocol_api.ProtocolContext):
     right_pipette_300ul = protocol.load_instrument("p300_single_gen2", "right", [tiprack_300ul_1])
 
     # default is 400
-    left_pipette_20ul.default_speed = PIPETTE_SPEED  # https://docs.opentrons.com/v2/new_protocol_api.html?highlight=speed#opentrons.protocol_api.InstrumentContext.default_speed
-    right_pipette_300ul.default_speed = PIPETTE_SPEED
+    left_pipette_20ul.default_speed = GANTRY_SPEED  # https://docs.opentrons.com/v2/new_protocol_api.html?highlight=speed#opentrons.protocol_api.InstrumentContext.default_speed
+    right_pipette_300ul.default_speed = GANTRY_SPEED
 
     # https://docs.opentrons.com/v2/new_pipette.html#ot-2-pipette-flow-rates
     # default 7.56
-    left_pipette_20ul.flow_rate.aspirate = 9.8  # default * 1.3
-    left_pipette_20ul.flow_rate.dispense = 9.8  # default * 1.3
-    left_pipette_20ul.flow_rate.blow_out = 9.8  # default * 1.3
+    left_pipette_20ul.flow_rate.aspirate = FLOW_RATE_20ul  # default * 1.3
+    left_pipette_20ul.flow_rate.dispense = FLOW_RATE_20ul
+    left_pipette_20ul.flow_rate.blow_out = FLOW_RATE_20ul
     # default 92.86
-    right_pipette_300ul.flow_rate.aspirate = 120.7
-    right_pipette_300ul.flow_rate.dispense = 120.7
-    right_pipette_300ul.flow_rate.blow_out = 120.7
+    right_pipette_300ul.flow_rate.aspirate = FLOW_RATE_300ul  # default * 1.3
+    right_pipette_300ul.flow_rate.dispense = FLOW_RATE_300ul
+    right_pipette_300ul.flow_rate.blow_out = FLOW_RATE_300ul
 
 
     # https://docs.opentrons.com/v2/writing.html#commands
