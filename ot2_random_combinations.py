@@ -160,7 +160,7 @@ def define_tip_volume(volume: float) -> float:
         raise Exception("volume is None")
     if volume < 2.0:
         raise Exception("pipetting volume below 2.0 is not supported")
-    if volume <= 20.0:
+    if volume < 20.0:  # NOTE 20 ul is pipetted with larger pipette to allow using only one pipette for the whole experiment with volume range 20-120 ul
         return LABWARE_DICTIONARY["filter_tip_96_20ul"][1]
     if volume <= 300.0:
         return LABWARE_DICTIONARY["tip_96_300ul"][1]
@@ -353,7 +353,7 @@ FLOW_RATE_300ul = 120.7  # default 92.86  -> 92.86 * 1.3
 RANDOM_SEED = 18  # use static seed to get same order in Opentrons App and the robot, because both run the protocol independendtly in forming the protocol steps
 SOURCE_WELLS_INITIAL_VOLUME_UL = 1000.0  # modify this based on initial volume; affects how source well is changed
 SOURCE_WELL_MARGIN = 50.0  # how many ul is left to source wells before changing to another
-NUMBER_OF_SOURCE_WELLS_PER_SPECIES = 1
+NUMBER_OF_SOURCE_WELLS_PER_SPECIES = 2
 NUMBER_OF_CONTROL_WELLS = 1
 # 1: name, 2: list of source wells (incl well location and fluid volume)
 SPECIES_1 = Species("laji1")  # source wells need to be generated inside run() method because they need access to the Opentrons plate
@@ -384,7 +384,7 @@ BLOCK_2_SPECIES = [SPECIES_7, SPECIES_8, SPECIES_9, SPECIES_10, SPECIES_11, SPEC
 BLOCK_3_SPECIES = [SPECIES_13, SPECIES_14, SPECIES_15, SPECIES_16, SPECIES_17, SPECIES_18]
 ALL_SPECIES = BLOCK_1_SPECIES + BLOCK_2_SPECIES + BLOCK_3_SPECIES
 NUMBER_OF_SPECIES = len(BLOCK_1_SPECIES)  # trivial but maybe useful to see
-VOLUME_PER_TARGET_WELL_UL = 60.0
+VOLUME_PER_TARGET_WELL_UL = 120.0
 CHANGE_TIPS = False  # change tips after each transfer; almost always should be true
  # "kontaminaation ehkäisemiseksi robotin voi määrätä
 # koskemaan pipetin kärjellä kaivoin reunaa kun se on pipetoinut nesteen kaivoon"
@@ -527,7 +527,7 @@ def run(protocol: protocol_api.ProtocolContext):
 
     # https://docs.opentrons.com/v2/writing.html#the-run-function-and-the-protocol-context
     # we need a lot of tips, but the program also prompts tip change when needed
-    tiprack_20ul_1 = protocol.load_labware(LABWARE_DICTIONARY["filter_tip_96_20ul"][0], 10)
+    # tiprack_20ul_1 = protocol.load_labware(LABWARE_DICTIONARY["filter_tip_96_20ul"][0], 10)
     # tiprack_20ul_2 = protocol.load_labware(LABWARE_DICTIONARY["filter_tip_96_20ul"][0], 2)
     # tiprack_20ul_3 = protocol.load_labware(LABWARE_DICTIONARY["filter_tip_96_20ul"][0], 3)
     tiprack_300ul_1 = protocol.load_labware(LABWARE_DICTIONARY["tip_96_300ul"][0], 7)
@@ -569,18 +569,18 @@ def run(protocol: protocol_api.ProtocolContext):
     protocol.comment("This protocol will pause and request you to load more tips when tips run out")
 
     # https://docs.opentrons.com/v2/new_pipette.html#pipette-models
-    left_pipette_20ul = protocol.load_instrument("p20_single_gen2", "left", [tiprack_20ul_1]) # in simulation, not using more than one tip rack per type to demonstrate the tip change prompt mechanism
+    # left_pipette_20ul = protocol.load_instrument("p20_single_gen2", "left", [tiprack_20ul_1]) # in simulation, not using more than one tip rack per type to demonstrate the tip change prompt mechanism
     right_pipette_300ul = protocol.load_instrument("p300_single_gen2", "right", [tiprack_300ul_1])
 
     # default is 400
-    left_pipette_20ul.default_speed = GANTRY_SPEED  # https://docs.opentrons.com/v2/new_protocol_api.html?highlight=speed#opentrons.protocol_api.InstrumentContext.default_speed
+    # left_pipette_20ul.default_speed = GANTRY_SPEED  # https://docs.opentrons.com/v2/new_protocol_api.html?highlight=speed#opentrons.protocol_api.InstrumentContext.default_speed
     right_pipette_300ul.default_speed = GANTRY_SPEED
 
     # https://docs.opentrons.com/v2/new_pipette.html#ot-2-pipette-flow-rates
     # default 7.56
-    left_pipette_20ul.flow_rate.aspirate = FLOW_RATE_20ul  # default * 1.3
-    left_pipette_20ul.flow_rate.dispense = FLOW_RATE_20ul
-    left_pipette_20ul.flow_rate.blow_out = FLOW_RATE_20ul
+    # left_pipette_20ul.flow_rate.aspirate = FLOW_RATE_20ul  # default * 1.3
+    # left_pipette_20ul.flow_rate.dispense = FLOW_RATE_20ul
+    # left_pipette_20ul.flow_rate.blow_out = FLOW_RATE_20ul
     # default 92.86
     right_pipette_300ul.flow_rate.aspirate = FLOW_RATE_300ul  # default * 1.3
     right_pipette_300ul.flow_rate.dispense = FLOW_RATE_300ul
@@ -594,7 +594,7 @@ def run(protocol: protocol_api.ProtocolContext):
     for block in BLOCKS:
         # for simplicity, pipettes are provided as a 2-member list with the smaller volume always at index 0 and higher volume at index 1
         # TODO for wider use in other protocols, this should be done in a smarter and more generic way
-        block.transfer_block(protocol, [left_pipette_20ul, right_pipette_300ul], source_plate, target_plate1, VOLUME_PER_TARGET_WELL_UL, CHANGE_TIPS, TOUCH_TIP)
+        block.transfer_block(protocol, [None, right_pipette_300ul], source_plate, target_plate1, VOLUME_PER_TARGET_WELL_UL, CHANGE_TIPS, TOUCH_TIP)
 
 
     # test for protocol's logical integrity
