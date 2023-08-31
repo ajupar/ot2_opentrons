@@ -210,10 +210,11 @@ class Block:
                 continue
         raise Exception("Could not define target plate, are enough target plates available?")
 
-    def initialize_combinations_list(self, target_plates: List[protocol_api.Labware]):
+    def initialize_combinations_list(self, block_num: int, target_plates: List[protocol_api.Labware]):
         """ Initialize the combinations list for one Block with all the possible
          binomial coefficient combinations of the SPECIES_LIST
-          into a randomized single-level list """
+          into a randomized single-level list. block_num here is needed here as a coefficient
+           for the random seed so that the order within each block is different """
 
         self.target_plates = target_plates
         number_of_species = len(self.local_species_list)
@@ -238,7 +239,9 @@ class Block:
         for control in self.controls:
             species_combinations_list.append([control])  # create single-member lists because control includes only one "species", ie. type of fluid
 
-        random.Random(RANDOM_SEED).shuffle(species_combinations_list)  # randomize the order
+        # random seed is needed to ensure that the order is the same in Opentrons App and the robot
+        # using block_num as coefficient for random seed to ensure that order within each block is different
+        random.Random(RANDOM_SEED * block_num).shuffle(species_combinations_list)  # randomize the order
 
         assert len(species_combinations_list) == self.block_size, "After adding controls, block size should equal amount of combinations"
 
@@ -392,8 +395,8 @@ LABWARE_DICTIONARY = {
 
 BLOCK_SIZE = 64  # wells
 CONTROL_WELLS_PER_BLOCK = 1
-# BLOCKS = [Block(BLOCK_1_SPECIES, CONTROLS_BLOCK_1, BLOCK_SIZE, 1), Block(BLOCK_2_SPECIES, CONTROLS_BLOCK_2, BLOCK_SIZE, 2), Block(BLOCK_3_SPECIES, CONTROLS_BLOCK_3, BLOCK_SIZE, 3)]
-BLOCKS = [Block(BLOCK_1_SPECIES, CONTROLS_BLOCK_1, BLOCK_SIZE, 1)]
+BLOCKS = [Block(BLOCK_1_SPECIES, CONTROLS_BLOCK_1, BLOCK_SIZE, 1), Block(BLOCK_2_SPECIES, CONTROLS_BLOCK_2, BLOCK_SIZE, 2), Block(BLOCK_3_SPECIES, CONTROLS_BLOCK_3, BLOCK_SIZE, 3)]
+# BLOCKS = [Block(BLOCK_1_SPECIES, CONTROLS_BLOCK_1, BLOCK_SIZE, 1)]
 
 ####################
 
@@ -546,7 +549,7 @@ def run(protocol: protocol_api.ProtocolContext):
     volume_needed_per_species = 0.0
     for block in BLOCKS:
         block_combinations_list: List[Combination]
-        block_combinations_list = block.initialize_combinations_list([target_plate1, target_plate2])  # removed target_plate3
+        block_combinations_list = block.initialize_combinations_list(block.block_num, [target_plate1, target_plate2])  # removed target_plate3
         for combination in block_combinations_list:
             for s in combination.specie:
                 s: Species
