@@ -1,9 +1,8 @@
 # Press Shift+F10 to execute it or replace it with your code.
 # Press Double Shift to search everywhere for classes, files, tool windows, actions, and settings.
+from io import TextIOWrapper
 from typing import List, Tuple
-
-
-
+from enum import Enum
 from opentrons import protocol_api
 import itertools
 import random
@@ -17,31 +16,6 @@ from opentrons.protocol_api.labware import OutOfTipsError
 def binomial(a,b):
     """" https://www.pythonpool.com/python-binomial-coefficient/ """
     return fact(a) // fact(b) // fact(a-b)
-
-
-CSV_TRANSFERS_HEADER = ["block", "combination", "species", "n_species", "individ_transf_vol", "total_transf_vol", "destination_plate", "destination_well"]
-CSV_TRANSFERS_ROWS = [CSV_TRANSFERS_HEADER]
-
-CSV_SOURCES_HEADER = ["species", "source_plate", "source_well", "starting_volume_ul"]
-CSV_SOURCES_ROWS = [CSV_SOURCES_HEADER]
-
-
-
-def write_csv(rows: List, filename: str):
-    """
-    https://docs.python.org/3/library/csv.html
-    https://www.pythontutorial.net/python-basics/python-write-csv-file/
-    @return:
-    """
-    with open(file= filename, mode="w", encoding="UTF8",
-              newline="") as csv_file:
-        csv_writer = csv.writer(csv_file)
-
-        csv_writer.writerows(rows)
-
-
-def generate_filename(identifier: str) -> str:
-    return identifier + "_" + datetime.now().strftime("%d%m%Y_%H-%M-%S") + ".csv"
 
 
 class Well:
@@ -168,15 +142,14 @@ class Combination:
                 protocol.pause("Out of tips for pipette " + str(pipette) + " while transferring species " + spec.name + " from well " + str(source_well.get_opentrons_well(source_plate)) + " to well " + str(self.target_well.opentrons_well) +"! Reload the tips for this pipette back to starting configuration, then resume.")
                 pipette.reset_tipracks()
 
-                protocol.comment("Transferring " + str(volume_to_transfer) + " μl of species " + spec.name + " from well " + str(source_well.get_opentrons_well(source_plate)))
+                protocol.comment("Transferring " + str(volume_to_transfer) + " μl of species " + spec.name + " from well " + str(source_well.get_opentrons_well(source_plate)) + " to " + str(self.target_well.opentrons_well))
                 pipette.transfer(volume_to_transfer, source_well.get_opentrons_well(source_plate),
                                  self.target_well.opentrons_well, trash=change_pipettes, touch_tip=touch_tip)
                 DEBUG_TRANSFER_COUNTER += 1
                 source_well.current_volume -= volume_to_transfer
                 assert source_well.current_volume == initial_volume - volume_to_transfer, "Source well volume should decrease correctly"
 
-        CSV_TRANSFERS_ROWS.append([block_num, comb_num, str([x.name for x in self.specie]), len(self.specie), volume_to_transfer, total_volume, str(self.target_well.opentrons_plate), self.target_well.opentrons_well.well_name])
-
+        FileHandler.write_row(FileType.TRANSFERS, [block_num, comb_num, str([x.name for x in self.specie]), len(self.specie), volume_to_transfer, total_volume, str(self.target_well.opentrons_plate), self.target_well.opentrons_well.well_name])
 
 
 def define_tip_volume(volume: float) -> float:
@@ -345,7 +318,8 @@ def generate_source_wells(spec: Species, column_index: int, row_index: int, numb
         well.opentrons_well = source_plate[coordinate]
         wells.append(well)
 
-        CSV_SOURCES_ROWS.append([spec.name, str(well.opentrons_plate), well.opentrons_well.well_name, SOURCE_WELLS_INITIAL_VOLUME_UL])
+        FileHandler.write_row(FileType.SOURCES, [spec.name, str(well.opentrons_plate), well.opentrons_well.well_name, SOURCE_WELLS_INITIAL_VOLUME_UL])
+
 
     return wells
 
@@ -364,7 +338,8 @@ dict_rownumber_letter = {
 ##########################
 # This part can be modified by the user:
 # script starting values
-CURRENT_COMPUTER_NAME = "V155-15API"  # get this with platform.node(). used to separate analyses/runs on computer vs robot
+LINUX_COMPUTER_NAME = "V155-15API"  # get this with platform.node(). used to separate analyses/runs on computer vs robot
+MAC_COMPUTER_NAME = ""  # TODO
 PIPETTE_SPEED = 600.0  # default is 400.0.  https://docs.opentrons.com/v2/new_protocol_api.html?highlight=speed#opentrons.protocol_api.InstrumentContext.default_speed
 RANDOM_SEED = 18  # use static seed to get same order in Opentrons App and the robot, because both run the protocol independendtly in forming the protocol steps
 SOURCE_WELLS_INITIAL_VOLUME_UL = 1000.0  # modify this based on initial volume; affects how source well is changed
@@ -459,16 +434,84 @@ def define_sources_with_defaults(spec: Species, colIndex: int, rowIndex: int, so
     spec.source_wells = generate_source_wells(spec, colIndex, rowIndex, NUMBER_OF_SOURCE_WELLS_PER_SPECIES, SOURCE_WELLS_INITIAL_VOLUME_UL, source_plate)
 
 
+class FileType(Enum):
+    """ https://realpython.com/python-enum/ """
+    SOURCES = "sources"
+    TRANSFERS = "transfers"
+
+
+class FileHandler:
+    """ https://www.digitalocean.com/community/tutorials/python-static-method  <br/> <br/>
+    Keep the file writers open from the beginning to save any written data even if
+     the protocol is aborted before it ends
+    """
+    file_path: str
+    sources_filename: str
+    transfers_filename: str
+    sources_file: TextIOWrapper
+    transfers_file: TextIOWrapper
+    transfers_writer: None
+    sources_writer: None
+    csv_transfers_header = ["block", "combination", "species", "n_species", "individ_transf_vol", "total_transf_vol",
+                            "destination_plate", "destination_well"]
+    csv_sources_header = ["species", "source_plate", "source_well", "starting_volume_ul"]
+
+    @staticmethod
+    def init_writers():
+        """  https://www.pythontutorial.net/python-basics/python-write-csv-file/ """
+        FileHandler.file_path = FileHandler.define_file_path()
+        FileHandler.sources_filename = FileHandler.generate_filename(FileType.SOURCES.value)
+        FileHandler.transfers_filename = FileHandler.generate_filename(FileType.TRANSFERS.value)
+
+        FileHandler.sources_file = open(FileHandler.file_path + FileHandler.sources_filename, "w")
+        FileHandler.transfers_file = open(FileHandler.file_path + FileHandler.transfers_filename, "w")
+
+        FileHandler.sources_writer = csv.writer(FileHandler.sources_file)
+        FileHandler.transfers_writer = csv.writer(FileHandler.transfers_file)
+
+    @staticmethod
+    def write_header_rows():
+        FileHandler.write_row(FileType.SOURCES, FileHandler.csv_sources_header)
+        FileHandler.write_row(FileType.TRANSFERS, FileHandler.csv_transfers_header)
+
+    @staticmethod
+    def define_file_path() -> str:
+        """ Different paths are needed when running on computer vs. robot """
+        if platform.node() == LINUX_COMPUTER_NAME:  # https://stackoverflow.com/a/4271873
+            return "/home/atte/Ohjelmointi/pycharm-workspace/OT2_random_combinations/output/"  # running in computer
+        elif platform.node() == MAC_COMPUTER_NAME:
+            raise Exception("define mac path")
+        else:
+            return "/data/user_storage/"  # running inside robot
+
+    @staticmethod
+    def write_row(filetype: Enum, row: List[str]):
+        """ filetype should be 'transfers' or 'sources' """
+        if filetype == FileType.TRANSFERS:
+            FileHandler.transfers_writer.writerow(row)
+        elif filetype == FileType.SOURCES:
+            FileHandler.sources_writer.writerow(row)
+        else:
+            raise Exception("Invalid filetype for FileHandler.write_row(), must be 'transfers' or 'sources'. Input was " + str(filetype))
+
+    @staticmethod
+    def generate_filename(identifier: str) -> str:
+        return identifier + "_" + datetime.now().strftime("%d%m%Y_%H-%M-%S") + ".csv"
+
+    @staticmethod
+    def close_files():
+        FileHandler.sources_file.close()
+        FileHandler.transfers_file.close()
+
+
 def run(protocol: protocol_api.ProtocolContext):
+    FileHandler.init_writers()
+    FileHandler.write_header_rows()
 
     # iterates the number of actually executed transfers for quality assurance purposes,
     # will be asserted against the pre-calculated theoretical amount of transfers
     global DEBUG_TRANSFER_COUNTER
     DEBUG_TRANSFER_COUNTER = 0
-
-    # TÄSTÄ ehtolause jolla erotellaan, onko simulointi (App/opentrons_simulate) vai oikea robottiajo,
-    # tiedostopolut oikein eri ehtoihin, ks. Opentrons Cookbook
-    #protocol.is_simulating()
 
     global protocol_global
     protocol_global = protocol  # needed for protocol.comment access inside modules that otherwise don't use protocol
@@ -550,23 +593,16 @@ def run(protocol: protocol_api.ProtocolContext):
 
     protocol.comment("Amount of executed transfers at the end is " + str(DEBUG_TRANSFER_COUNTER) + ", total pre-calculated tip consumption was " + str(sum(required_tip_amounts.values())) + ", values are equal: " + str(DEBUG_TRANSFER_COUNTER == sum(required_tip_amounts.values())))
 
-    # Avoid validation error in the app or robot; the robot needs a specific file path (when is.simulating() is true)
+    # DID NOT WORK in separating computer vs robot despite Opentrons Cookbook instructions
     # path: str
     # if not protocol.is_simulating():
     #     path = "/data/user_storage/"
     # else:
     #     path = ""  # to protocol folder
 
-    if platform.node() == CURRENT_COMPUTER_NAME:  # https://stackoverflow.com/a/4271873
-        path = "/home/atte/Ohjelmointi/pycharm-workspace/OT2_random_combinations/output/"  # running in computer
-    else:
-        path = "/data/user_storage/"  # running inside robot
+    FileHandler.close_files()
 
-
-    write_csv(CSV_TRANSFERS_ROWS, path + generate_filename("transfers"))
-    write_csv(CSV_SOURCES_ROWS, path + generate_filename("sources"))
-
-    protocol.comment("Saved transfer data to file " + generate_filename("transfers") + " and sources data to file " + generate_filename("sources"))
+    protocol.comment("Saved transfers data to file " + FileHandler.transfers_filename + " and sources data to file " + FileHandler.sources_filename + " in path " + FileHandler.file_path)
 
 
 
