@@ -342,7 +342,7 @@ dict_rownumber_letter = {
 # This part can be modified by the user:
 # script starting values
 LINUX_COMPUTER_NAME = "V155-15API"  # get this with platform.node(). used to separate analyses/runs on computer vs robot
-MAC_COMPUTER_NAME = ""  # TODO
+MAC_COMPUTER_NAME = "TY2302039"  # Robot room's Mac computer
 # https://docs.opentrons.com/v2/robot_position.html#gantry-speed
 # https://docs.opentrons.com/v2/new_protocol_api.html?highlight=speed#opentrons.protocol_api.InstrumentContext.default_speed
 # "These default speeds were chosen because they’re the maximum speeds that Opentrons knows will work with the gantry.
@@ -489,7 +489,7 @@ class FileHandler:
         if platform.node() == LINUX_COMPUTER_NAME:  # https://stackoverflow.com/a/4271873
             return "/home/atte/Ohjelmointi/pycharm-workspace/OT2_random_combinations/output/"  # running in computer
         elif platform.node() == MAC_COMPUTER_NAME:
-            raise Exception("define mac path")
+            return "Users/biologia/Desktop/Juhani_koe1/"
         else:
             return "/data/user_storage/"  # running inside robot
 
