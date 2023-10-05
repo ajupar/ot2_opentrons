@@ -350,10 +350,10 @@ MAC_COMPUTER_NAME = "TY2302039"  # Robot room's Mac computer
 GANTRY_SPEED = 600.0  # default is 400.0.
 FLOW_RATE_20ul = 9.8  # default 7.56  -> 7.56 * 1.3
 FLOW_RATE_300ul = 120.7  # default 92.86  -> 92.86 * 1.3
-RANDOM_SEED = 18  # use static seed to get same order in Opentrons App and the robot, because both run the protocol independendtly in forming the protocol steps
-SOURCE_WELLS_INITIAL_VOLUME_UL = 1000.0  # modify this based on initial volume; affects how source well is changed
+RANDOM_SEED = 7  # use static seed to get same order in Opentrons App and the robot, because both run the protocol independendtly in forming the protocol steps
+SOURCE_WELLS_INITIAL_VOLUME_UL = 2000.0  # modify this based on initial volume; affects how source well is changed
 SOURCE_WELL_MARGIN = 50.0  # how many ul is left to source wells before changing to another
-NUMBER_OF_SOURCE_WELLS_PER_SPECIES = 2
+NUMBER_OF_SOURCE_WELLS_PER_SPECIES = 1
 NUMBER_OF_CONTROL_WELLS = 1
 # 1: name, 2: list of source wells (incl well location and fluid volume)
 SPECIES_1 = Species("laji1")  # source wells need to be generated inside run() method because they need access to the Opentrons plate
@@ -396,18 +396,19 @@ LABWARE_DICTIONARY = {
     'tip_96_300ul': ('opentrons_96_tiprack_300ul', 300.0),
     'plate_96_200ul': ('biorad_96_wellplate_200ul_pcr', 200.0),  # pitää ilmeisesti muuttaa Sarstedtin custom-levyksi
     'tipone_96_200ul': ("tipone_96_tiprack_200ul", 200.0),
+    'customtipone_96_tiprack_200ul': ("customtipone_96_tiprack_200ul", 200.0),
     'juhani_deepwell_plate': ('sarstedt_96_wellplate_2200ul', 2000.0)  # custom määrittely
 }
 
-BLOCK_SIZE = 16  # lyhyt testiajo
-# BLOCK_SIZE = 64  # kokonainen ajo
+# LOCK_SIZE = 16  # lyhyt testiajo
+BLOCK_SIZE = 64  # kokonainen ajo
 CONTROL_WELLS_PER_BLOCK = 1
 
 # kokonainen testiajo
-# BLOCKS = [Block(BLOCK_1_SPECIES, CONTROLS_BLOCK_1, BLOCK_SIZE, 1), Block(BLOCK_2_SPECIES, CONTROLS_BLOCK_2, BLOCK_SIZE, 2), Block(BLOCK_3_SPECIES, CONTROLS_BLOCK_3, BLOCK_SIZE, 3)]
+BLOCKS = [Block(BLOCK_1_SPECIES, CONTROLS_BLOCK_1, BLOCK_SIZE, 1), Block(BLOCK_2_SPECIES, CONTROLS_BLOCK_2, BLOCK_SIZE, 2), Block(BLOCK_3_SPECIES, CONTROLS_BLOCK_3, BLOCK_SIZE, 3)]
 # BLOCKS = [Block(BLOCK_1_SPECIES, CONTROLS_BLOCK_1, BLOCK_SIZE, 1)]
 # lyhyt testiajo:
-BLOCKS = [Block(BLOCK_1_SPECIES[0:4], CONTROLS_BLOCK_1, BLOCK_SIZE, 1)]
+#BLOCKS = [Block(BLOCK_1_SPECIES[0:4], CONTROLS_BLOCK_1, BLOCK_SIZE, 1)]
 
 
 ####################
@@ -536,20 +537,31 @@ def run(protocol: protocol_api.ProtocolContext):
     # tiprack_20ul_1 = protocol.load_labware(LABWARE_DICTIONARY["filter_tip_96_20ul"][0], 10)
     # tiprack_20ul_2 = protocol.load_labware(LABWARE_DICTIONARY["filter_tip_96_20ul"][0], 2)
     # tiprack_20ul_3 = protocol.load_labware(LABWARE_DICTIONARY["filter_tip_96_20ul"][0], 3)
-    tiprack_300ul_1 = protocol.load_labware(LABWARE_DICTIONARY["tip_96_300ul"][0], 7)
+    # tiprack_300ul_1 = protocol.load_labware(LABWARE_DICTIONARY["tip_96_300ul"][0], 7)
     # tiprack_300ul_1 = protocol.load_labware(LABWARE_DICTIONARY["tipone_96_200ul"], 7)
+
+    # täydessä ajossa 7 kärkiboksia, paikoissa:
+    # 1, 4, 2, 5, 3, 6, 9
+    tiprack_200ul_1 = protocol.load_labware("customtipone_96_tiprack_200ul", 1)
+    tiprack_200ul_2 = protocol.load_labware("customtipone_96_tiprack_200ul", 4)
+    tiprack_200ul_3 = protocol.load_labware("customtipone_96_tiprack_200ul", 2)
+    tiprack_200ul_4 = protocol.load_labware("customtipone_96_tiprack_200ul", 5)
+    tiprack_200ul_5 = protocol.load_labware("customtipone_96_tiprack_200ul", 3)
+    tiprack_200ul_6 = protocol.load_labware("customtipone_96_tiprack_200ul", 6)
+    tiprack_200ul_7 = protocol.load_labware("customtipone_96_tiprack_200ul", 9)
 
     # tiprack_300ul_2 = protocol.load_labware(LABWARE_DICTIONARY["tip_96_300ul"][0], 5)
     # tiprack_300ul_3 = protocol.load_labware(LABWARE_DICTIONARY["tip_96_300ul"][0], 6)
     # tiprack_300ul_4 = protocol.load_labware(LABWARE_DICTIONARY["tip_96_300ul"][0], 7)
     # tiprack_300ul_5 = protocol.load_labware(LABWARE_DICTIONARY["tip_96_300ul"][0], 8)
 
+    # täydessä ajossa source paikkaan 10, targetit 7 ja 8
     # ensure there are enough target plates for the amount of combinations
-    target_plate1 = protocol.load_labware(LABWARE_DICTIONARY["juhani_deepwell_plate"][0], 2)
-    target_plate2 = protocol.load_labware(LABWARE_DICTIONARY["juhani_deepwell_plate"][0], 3)
+    target_plate1 = protocol.load_labware(LABWARE_DICTIONARY["juhani_deepwell_plate"][0], 7)
+    target_plate2 = protocol.load_labware(LABWARE_DICTIONARY["juhani_deepwell_plate"][0], 8)
     # target_plate3 = protocol.load_labware(LABWARE_DICTIONARY["plate_96_200ul"][0], 10)
     # assuming that one is enough
-    source_plate = protocol.load_labware(LABWARE_DICTIONARY["juhani_deepwell_plate"][0], 4)
+    source_plate = protocol.load_labware(LABWARE_DICTIONARY["juhani_deepwell_plate"][0], 10)
 
     define_source_wells(source_plate)
 
@@ -576,7 +588,7 @@ def run(protocol: protocol_api.ProtocolContext):
 
     # https://docs.opentrons.com/v2/new_pipette.html#pipette-models
     # left_pipette_20ul = protocol.load_instrument("p20_single_gen2", "left", [tiprack_20ul_1]) # in simulation, not using more than one tip rack per type to demonstrate the tip change prompt mechanism
-    right_pipette_300ul = protocol.load_instrument("p300_single_gen2", "right", [tiprack_300ul_1])
+    right_pipette_300ul = protocol.load_instrument("p300_single_gen2", "right", [tiprack_200ul_1, tiprack_200ul_2, tiprack_200ul_3, tiprack_200ul_4, tiprack_200ul_5, tiprack_200ul_6, tiprack_200ul_7])
 
     # default is 400
     # left_pipette_20ul.default_speed = GANTRY_SPEED  # https://docs.opentrons.com/v2/new_protocol_api.html?highlight=speed#opentrons.protocol_api.InstrumentContext.default_speed
@@ -591,7 +603,6 @@ def run(protocol: protocol_api.ProtocolContext):
     right_pipette_300ul.flow_rate.aspirate = FLOW_RATE_300ul  # default * 1.3
     right_pipette_300ul.flow_rate.dispense = FLOW_RATE_300ul
     right_pipette_300ul.flow_rate.blow_out = FLOW_RATE_300ul
-
 
     # https://docs.opentrons.com/v2/writing.html#commands
     # https://docs.opentrons.com/v2/new_examples.html

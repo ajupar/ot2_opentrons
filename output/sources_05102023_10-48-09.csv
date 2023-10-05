@@ -1,0 +1,22 @@
+species,source_plate,source_well,starting_volume_ul
+laji1,Sarstedt 96 Well Plate 2200 µL on 10,A1,2000.0
+laji2,Sarstedt 96 Well Plate 2200 µL on 10,E1,2000.0
+laji3,Sarstedt 96 Well Plate 2200 µL on 10,A2,2000.0
+laji4,Sarstedt 96 Well Plate 2200 µL on 10,E2,2000.0
+laji5,Sarstedt 96 Well Plate 2200 µL on 10,A3,2000.0
+laji6,Sarstedt 96 Well Plate 2200 µL on 10,E3,2000.0
+CONTROL_BLOCK_1,Sarstedt 96 Well Plate 2200 µL on 10,A4,2000.0
+laji7,Sarstedt 96 Well Plate 2200 µL on 10,E4,2000.0
+laji8,Sarstedt 96 Well Plate 2200 µL on 10,A5,2000.0
+laji9,Sarstedt 96 Well Plate 2200 µL on 10,E5,2000.0
+laji10,Sarstedt 96 Well Plate 2200 µL on 10,A6,2000.0
+laji11,Sarstedt 96 Well Plate 2200 µL on 10,E6,2000.0
+laji12,Sarstedt 96 Well Plate 2200 µL on 10,A7,2000.0
+CONTROL_BLOCK_2,Sarstedt 96 Well Plate 2200 µL on 10,E7,2000.0
+laji13,Sarstedt 96 Well Plate 2200 µL on 10,A8,2000.0
+laji14,Sarstedt 96 Well Plate 2200 µL on 10,E8,2000.0
+laji15,Sarstedt 96 Well Plate 2200 µL on 10,A9,2000.0
+laji16,Sarstedt 96 Well Plate 2200 µL on 10,E9,2000.0
+laji17,Sarstedt 96 Well Plate 2200 µL on 10,A10,2000.0
+laji18,Sarstedt 96 Well Plate 2200 µL on 10,E10,2000.0
+CONTROL_BLOCK_3,Sarstedt 96 Well Plate 2200 µL on 10,A11,2000.0
